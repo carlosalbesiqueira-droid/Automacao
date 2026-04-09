@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Y3 Gestao Telecom | Comparativo de Pendencias</title>
+  <script>
+    (function redirectToPanel() {
+      var params = new URLSearchParams(window.location.search);
+      if (params.get('embed') === '1') {
+        document.documentElement.classList.add('compare-embed');
+      }
+      var isLocalHost = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
+      var isCanonicalPort = window.location.port === '3210';
+      if (isLocalHost && !isCanonicalPort) {
+        window.location.replace('http://localhost:3210/comparativo.html');
+      }
+    }());
+  </script>
+  <link rel="stylesheet" href="./styles.css?v=20260409-12">
+</head>
+<body data-flow="compare-dual">
+  <div class="app-shell">
+    <div class="mesh mesh-left"></div>
+    <div class="mesh mesh-right"></div>
+
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-mark">Y3</div>
+        <div>
+          <p class="brand-name">Y3 Gestao Telecom</p>
+          <p class="brand-subtitle">Comparativo de pendencias em dois portais</p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <span class="top-pill">Pedido x retorno</span>
+        <span class="top-pill top-pill-soft">Dois portais de anexos</span>
+        <a class="ghost-link" href="./index.html" target="_blank" rel="noopener">Abrir padronizacao</a>
+        <span class="status-badge" id="healthBadge">Verificando sistema</span>
+      </div>
+    </header>
+
+    <section class="hero-section">
+      <div class="hero-copy">
+        <span class="section-kicker">Comparativo em dois lados</span>
+        <h1>Separe o que foi pedido do que o cliente entregou e veja apenas o que continua faltando.</h1>
+        <p>
+          O portal da esquerda recebe o pedido original, por e-mail ou por planilha geral. O portal da direita recebe o retorno do cliente, tambem por e-mail ou por planilha geral.
+          A automacao compara os dois lados, procura prova oficial por PDF ou link da NF e devolve so as pendencias remanescentes.
+        </p>
+      </div>
+
+      <div class="hero-steps">
+        <article class="step-card">
+          <span class="step-number">01</span>
+          <strong>Portal 1: o que pedimos</strong>
+          <p>Envie o e-mail da cobranca mensal ou a planilha geral com o que foi solicitado.</p>
+        </article>
+
+        <article class="step-card">
+          <span class="step-number">02</span>
+          <strong>Portal 2: o que mandaram</strong>
+          <p>Envie o e-mail de retorno do cliente ou a planilha geral tratada, com links e PDFs oficiais.</p>
+        </article>
+
+        <article class="step-card">
+          <span class="step-number">03</span>
+          <strong>Resultado do comparativo</strong>
+          <p>Receba a lista do que continua faltando e a base padronizada usada como apoio.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="compare-guide">
+      <article class="guide-card">
+        <span class="section-kicker">Portal 1</span>
+        <h3>O que pedimos</h3>
+        <p>Serve como fonte da cobranca. Voce pode usar o e-mail original ou uma planilha geral ja padronizada desse lado.</p>
+      </article>
+
+      <article class="guide-card">
+        <span class="section-kicker">Portal 2</span>
+        <h3>O que o cliente mandou</h3>
+        <p>Serve como fonte de comprovacao. Voce pode usar o e-mail de retorno ou a planilha geral tratada com links e PDFs oficiais.</p>
+      </article>
+
+      <article class="guide-card">
+        <span class="section-kicker">Regra principal</span>
+        <h3>Comprovacao oficial</h3>
+        <p>PDF do governo ou link oficial da nota contam como prova. Sem isso, a pendencia continua aberta.</p>
+      </article>
+    </section>
+
+    <main class="compare-workspace">
+      <section class="panel panel-form">
+        <div class="panel-heading">
+          <span class="panel-tag">Passo 1</span>
+          <h2>Carregar os dois lados do comparativo</h2>
+          <p>Use um portal para o pedido original e outro para o retorno do cliente. Cada lado aceita um arquivo <code>.eml</code> ou uma planilha <code>.xlsx</code>, <code>.xlsm</code>, <code>.xls</code> ou <code>.csv</code>.</p>
+        </div>
+
+        <form id="compareForm" class="automation-form">
+          <div class="dual-upload-grid">
+            <section class="portal-card">
+              <div class="portal-header">
+                <span class="portal-badge">Portal 1</span>
+                <strong>O que pedimos</strong>
+                <p>Envie o e-mail original da cobranca ou a planilha geral do pedido.</p>
+              </div>
+
+              <label class="upload-zone upload-zone-compact" for="requestEmlFile">
+                <input id="requestEmlFile" type="file" name="requestEmlFile" accept=".eml,.xlsx,.xlsm,.xls,.csv">
+                <span class="upload-icon">ARQ</span>
+                <strong>Pedido original</strong>
+                <p id="requestUploadText">Clique para escolher o <code>.eml</code> ou a planilha do que foi solicitado.</p>
+              </label>
+            </section>
+
+            <section class="portal-card">
+              <div class="portal-header">
+                <span class="portal-badge portal-badge-soft">Portal 2</span>
+                <strong>O que o cliente mandou</strong>
+                <p>Envie o e-mail de retorno ou a planilha geral tratada com links e PDFs.</p>
+              </div>
+
+              <label class="upload-zone upload-zone-compact" for="responseEmlFile">
+                <input id="responseEmlFile" type="file" name="responseEmlFile" accept=".eml,.xlsx,.xlsm,.xls,.csv">
+                <span class="upload-icon">ARQ</span>
+                <strong>Retorno do cliente</strong>
+                <p id="responseUploadText">Clique para escolher o <code>.eml</code> ou a planilha do que foi entregue pelo cliente.</p>
+              </label>
+            </section>
+          </div>
+
+          <label class="field">
+            <span>Pasta de saida</span>
+            <input type="text" name="output" value="output" placeholder="output">
+            <small>Os arquivos gerados serao organizados por data e hora dentro desta pasta.</small>
+          </label>
+
+          <div class="compare-checklist">
+            <strong>Como interpretar</strong>
+            <div class="compare-check-item">
+              <span>1</span>
+              <p>No portal 1, deixe apenas a origem da cobranca.</p>
+            </div>
+            <div class="compare-check-item">
+              <span>2</span>
+              <p>No portal 2, deixe apenas o que realmente veio do cliente.</p>
+            </div>
+            <div class="compare-check-item">
+              <span>3</span>
+              <p>Depois de processar, consulte primeiro a aba de pendencias remanescentes.</p>
+            </div>
+          </div>
+
+          <button class="secondary-button" type="button" id="comparePreviewButton">
+            <span>Atualizar as duas previas</span>
+            <small>Ler separadamente o pedido e o retorno antes de comparar</small>
+          </button>
+
+          <button class="submit-button" type="submit" id="compareSubmitButton">
+            <span>Processar comparativo</span>
+            <small>Retornar apenas as pendencias que continuam sem comprovacao oficial</small>
+          </button>
+        </form>
+      </section>
+
+      <aside class="panel panel-preview">
+        <div class="panel-heading">
+          <span class="panel-tag">Passo 2</span>
+          <h2>Previa separada dos dois portais</h2>
+          <p>Confira o que entrou em cada lado antes de comparar.</p>
+        </div>
+
+        <div class="dual-preview-grid">
+          <section class="preview-portal">
+            <div class="portal-header">
+              <span class="portal-badge">Portal 1</span>
+              <strong>O que pedimos</strong>
+            </div>
+
+            <div class="preview-state" id="requestPreviewState">
+              <strong>Aguardando arquivo</strong>
+              <p>Envie o e-mail ou a planilha do pedido para carregar a previa.</p>
+            </div>
+
+            <div class="preview-content is-hidden" id="requestPreviewContent">
+              <div class="preview-header">
+                <div class="preview-subject-wrap">
+                  <span class="preview-label">Assunto identificado</span>
+                  <h3 id="requestPreviewSubject">(sem assunto)</h3>
+                </div>
+                <span class="preview-source">Portal 1</span>
+              </div>
+
+              <div class="preview-meta" id="requestPreviewMeta"></div>
+
+              <div class="preview-pane">
+                <div class="preview-pane-header">
+                  <strong>Anexos do pedido</strong>
+                  <span id="requestPreviewAttachmentHint">Selecione o que entra no comparativo</span>
+                </div>
+                <div class="attachment-list" id="requestPreviewAttachments"></div>
+              </div>
+
+              <div class="preview-pane">
+                <div class="preview-pane-header">
+                  <strong>Tabelas do pedido</strong>
+                  <span id="requestPreviewTableCount">0 tabela(s)</span>
+                </div>
+                <div class="table-preview-list" id="requestPreviewTables"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="preview-portal">
+            <div class="portal-header">
+              <span class="portal-badge portal-badge-soft">Portal 2</span>
+              <strong>O que o cliente mandou</strong>
+            </div>
+
+            <div class="preview-state" id="responsePreviewState">
+              <strong>Aguardando arquivo</strong>
+              <p>Envie o e-mail ou a planilha do retorno para carregar a previa.</p>
+            </div>
+
+            <div class="preview-content is-hidden" id="responsePreviewContent">
+              <div class="preview-header">
+                <div class="preview-subject-wrap">
+                  <span class="preview-label">Assunto identificado</span>
+                  <h3 id="responsePreviewSubject">(sem assunto)</h3>
+                </div>
+                <span class="preview-source">Portal 2</span>
+              </div>
+
+              <div class="preview-meta" id="responsePreviewMeta"></div>
+
+              <div class="preview-pane">
+                <div class="preview-pane-header">
+                  <strong>Anexos do retorno</strong>
+                  <span id="responsePreviewAttachmentHint">Selecione o que entra no comparativo</span>
+                </div>
+                <div class="attachment-list" id="responsePreviewAttachments"></div>
+              </div>
+
+              <div class="preview-pane">
+                <div class="preview-pane-header">
+                  <strong>Tabelas do retorno</strong>
+                  <span id="responsePreviewTableCount">0 tabela(s)</span>
+                </div>
+                <div class="table-preview-list" id="responsePreviewTables"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </main>
+
+    <section class="panel panel-result">
+      <div class="panel-heading">
+        <span class="panel-tag">Passo 3</span>
+        <h2>Resultado do comparativo</h2>
+        <p>Veja o que continua faltando e use a base padronizada do retorno como apoio de conferencia.</p>
+      </div>
+
+      <div class="result-placeholder" id="resultPlaceholder">
+        <strong>Pronto para comparar</strong>
+        <p>Depois da execucao, a diferenciacao das pendencias, a base padronizada de apoio e o resumo do comparativo aparecerao aqui.</p>
+      </div>
+
+      <div class="result-content is-hidden" id="resultContent">
+        <div class="result-header">
+          <div>
+            <span class="preview-label">Execucao</span>
+            <h3 id="resultTitle">Resultado</h3>
+          </div>
+          <span class="result-badge" id="resultBadge">Concluido</span>
+        </div>
+
+        <div class="compare-insight">
+          <div class="compare-insight-copy">
+            <span class="preview-label">Leitura rapida</span>
+            <h3 id="resultInsightTitle">Comparativo pronto</h3>
+            <p id="resultInsightText">A automacao vai resumir aqui se ainda existe algo a cobrar do cliente.</p>
+          </div>
+
+          <div class="compare-insight-rules">
+            <article class="compare-rule-card">
+              <span>Comprovado</span>
+              <strong>PDF oficial ou link oficial da NF no retorno do cliente</strong>
+            </article>
+            <article class="compare-rule-card">
+              <span>Pendente</span>
+              <strong>Estava no pedido, mas nao apareceu com prova oficial no retorno</strong>
+            </article>
+          </div>
+        </div>
+
+        <div class="result-metrics" id="resultMetrics"></div>
+        <div class="result-files" id="resultFiles"></div>
+
+        <div class="followup-panel is-hidden" id="followUpPanel">
+          <div class="preview-pane">
+            <div class="preview-pane-header">
+              <strong>Cobranca pronta para Outlook</strong>
+              <span id="followUpHint">Anexa automaticamente a planilha de pendencias remanescentes</span>
+            </div>
+
+            <div class="followup-grid">
+              <label class="field">
+                <span>Para</span>
+                <input id="followUpTo" type="text" placeholder="cliente@empresa.com">
+                <small>Voce pode ajustar os destinatarios antes de abrir ou enviar.</small>
+              </label>
+
+              <label class="field">
+                <span>CC</span>
+                <input id="followUpCc" type="text" placeholder="gestao@empresa.com">
+                <small>Use ponto e virgula para mais de um destinatario.</small>
+              </label>
+
+              <label class="field field-full">
+                <span>Assunto</span>
+                <input id="followUpSubject" type="text" placeholder="Reforco de tratativa das NFs pendentes">
+              </label>
+
+              <label class="field field-full">
+                <span>Mensagem</span>
+                <textarea id="followUpMessage" rows="10" placeholder="Mensagem do e-mail"></textarea>
+                <small>A tabela com as pendencias e a planilha anexa serao adicionadas automaticamente no Outlook.</small>
+              </label>
+            </div>
+
+            <div class="followup-meta" id="followUpMeta"></div>
+
+            <div class="followup-actions">
+              <button class="secondary-button" type="button" id="followUpDraftButton">
+                <span>Abrir rascunho no Outlook</span>
+                <small>Gera o e-mail com tabela e anexo para revisar antes do envio</small>
+              </button>
+
+              <button class="submit-button" type="button" id="followUpSendButton">
+                <span>Enviar agora pelo Outlook</span>
+                <small>Dispara o follow-up automaticamente usando o Outlook desktop</small>
+              </button>
+            </div>
+
+            <div class="followup-feedback is-hidden" id="followUpFeedback"></div>
+          </div>
+        </div>
+
+        <div class="result-tab-shell">
+          <div class="result-tab-bar" role="tablist" aria-label="Visualizacao do comparativo">
+            <button
+              class="result-tab-button is-active"
+              id="resultTabPending"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="resultPanelPending"
+              data-result-view="pending"
+            >
+              <span>Pendencias remanescentes</span>
+              <strong id="resultPendingTabCount">0 linha(s)</strong>
+            </button>
+
+            <button
+              class="result-tab-button"
+              id="resultTabGeneral"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="resultPanelGeneral"
+              data-result-view="general"
+            >
+              <span>Base padronizada do retorno</span>
+              <strong id="resultCombinedTabCount">0 linha(s)</strong>
+            </button>
+          </div>
+
+          <div class="result-tab-panel is-active" id="resultPanelPending" role="tabpanel" aria-labelledby="resultTabPending" data-result-panel="pending">
+            <div class="preview-pane">
+              <div class="preview-pane-header">
+                <strong>Pendencias remanescentes</strong>
+                <span id="resultPendingCount">0 linha(s)</span>
+              </div>
+              <div class="table-preview-list" id="resultPendingTable"></div>
+            </div>
+          </div>
+
+          <div class="result-tab-panel" id="resultPanelGeneral" role="tabpanel" aria-labelledby="resultTabGeneral" data-result-panel="general">
+            <div class="preview-pane">
+              <div class="preview-pane-header">
+                <strong>Base padronizada usada como apoio</strong>
+                <span id="resultCombinedCount">0 linha(s)</span>
+              </div>
+              <div class="table-preview-list" id="resultCombinedTable"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="warnings-box">
+          <div class="warnings-header">
+            <strong>Avisos de leitura</strong>
+            <span id="warningsCount">0</span>
+          </div>
+          <ul id="warningsList"></ul>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="./comparativo.js?v=20260409-12"></script>
+</body>
+</html>
