@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Y3 Gestao Telecom | BOT DE FATURAS</title>
+  <link rel="stylesheet" href="./styles.css?v=20260410-15">
+</head>
+<body data-flow="bot-faturas-v2">
+  <div class="app-shell">
+    <div class="mesh mesh-left"></div>
+    <div class="mesh mesh-right"></div>
+
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-mark">Y3</div>
+        <div>
+          <p class="brand-name">Y3 Gestao Telecom</p>
+          <p class="brand-subtitle">Area operacional do BOT DE FATURAS</p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <span class="top-pill">BOT DE FATURAS</span>
+        <a class="ghost-link ghost-button" href="./index.html#padronizacao">Padronizacao</a>
+        <a class="ghost-link ghost-button" href="./index.html#comparativo">Comparativo</a>
+        <span class="status-badge" id="healthBadge">Verificando backend</span>
+      </div>
+    </header>
+
+    <section class="hero-section">
+      <div class="hero-copy">
+        <span class="section-kicker">Fila operacional</span>
+        <h1>Suba a planilha, acompanhe o lote e baixe os arquivos encontrados por linha.</h1>
+        <p>
+          Esta area foi desenhada para operacao de faturas por lote. O backend valida a planilha,
+          normaliza colunas equivalentes, cria o lote, processa linha por linha em fila assincrona
+          e devolve PDF, arquivo eletronico e erro detalhado quando a automacao nao fecha.
+        </p>
+      </div>
+
+      <div class="hero-steps">
+        <article class="step-card">
+          <span class="step-number">01</span>
+          <strong>Upload flexivel</strong>
+          <p>CSV e XLSX com mapeamento inteligente de colunas, mesmo quando o cabecalho vem fora do padrao.</p>
+        </article>
+
+        <article class="step-card">
+          <span class="step-number">02</span>
+          <strong>Fila com workers</strong>
+          <p>Cada linha vai para a fila, passa por conector isolado de portal e gera log, evidencias e status final.</p>
+        </article>
+
+        <article class="step-card">
+          <span class="step-number">03</span>
+          <strong>Resultado auditavel</strong>
+          <p>Baixe a planilha de retorno, o ZIP do lote, consulte o historico e reprocese linha ou lote quando precisar.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel panel-hub">
+      <div class="panel-heading">
+        <span class="panel-tag">Operacao</span>
+        <h2>Telas do BOT DE FATURAS</h2>
+        <p>Use as abas abaixo para alternar entre upload, monitoramento, resultado, detalhe por linha e historico.</p>
+      </div>
+
+      <div class="screen-switch" role="tablist" aria-label="Telas do bot de faturas">
+        <button class="screen-button is-active" type="button" data-bot-screen-trigger="upload">Upload</button>
+        <button class="screen-button" type="button" data-bot-screen-trigger="processing">Processamento</button>
+        <button class="screen-button" type="button" data-bot-screen-trigger="results">Resultados</button>
+        <button class="screen-button" type="button" data-bot-screen-trigger="detail">Detalhe da linha</button>
+        <button class="screen-button" type="button" data-bot-screen-trigger="history">Historico</button>
+      </div>
+    </section>
+
+    <section class="panel bot-screen is-active" data-bot-screen="upload">
+      <div class="panel-heading">
+        <span class="panel-tag">Tela 1</span>
+        <h2>Upload de planilha</h2>
+        <p>Envie uma planilha <code>.csv</code> ou <code>.xlsx</code> com os dados das faturas a serem buscadas.</p>
+      </div>
+
+      <div class="upload-grid">
+        <form id="botUploadForm" class="automation-form">
+          <label class="upload-zone" for="spreadsheetFile">
+            <input id="spreadsheetFile" type="file" accept=".csv,.xlsx,.xlsm,.xls">
+            <span class="upload-icon">BOT</span>
+            <strong>Selecione a planilha do lote</strong>
+            <p id="spreadsheetFileLabel">Aceita CSV, XLSX, XLSM e XLS com parser flexivel de colunas.</p>
+          </label>
+
+          <div class="help-callout">
+            <strong>Colunas aceitas</strong>
+            <p>
+              Exemplos: <code>NUMERO TICKET</code>, <code>CLIENTE/EMPRESA</code>, <code>OPERADORA</code>,
+              <code>Titulo</code>, <code>MES_REFERENCIA</code>, <code>VENCIMENTO</code>, <code>LINK_PORTAL</code>,
+              <code>USUARIO_LOGIN</code>, <code>SENHA</code>, <code>COD_CLIENTE</code> e <code>CONTA</code>.
+            </p>
+          </div>
+
+          <button class="submit-button" type="submit" id="uploadButton">
+            <span>Criar lote e iniciar fila</span>
+            <small>Valida o arquivo, separa linhas invalidas e envia as validas para processamento assincrono</small>
+          </button>
+        </form>
+
+        <aside class="assistant-card" id="uploadGuideCard">
+          <span class="assistant-eyebrow">Checklist do operador</span>
+          <h3 id="uploadGuideTitle">Aguardando planilha</h3>
+          <p id="uploadGuideText">Assim que o arquivo for enviado, eu mostro o lote criado, o mapeamento de colunas e as primeiras pendencias.</p>
+          <div class="assistant-list" id="uploadGuideList">
+            <article class="assistant-item">
+              <strong>Campos minimos por linha</strong>
+              <p>Empresa, operadora, algum identificador de conta ou titulo, referencia e credenciais validas.</p>
+            </article>
+            <article class="assistant-item">
+              <strong>Seguranca</strong>
+              <p>Senhas nao aparecem no painel e sao armazenadas de forma criptografada no backend do bot.</p>
+            </article>
+          </div>
+        </aside>
+      </div>
+
+      <div class="mapping-list" id="uploadMappingPanel">
+        <div class="empty-inline">Depois do upload, o mapeamento de colunas reconhecidas aparece aqui.</div>
+      </div>
+    </section>
+
+    <section class="panel bot-screen" data-bot-screen="processing">
+      <div class="panel-heading">
+        <span class="panel-tag">Tela 2</span>
+        <h2>Acompanhamento do processamento</h2>
+        <p>Consulte o lote ativo, o progresso da fila e o status corrente de cada linha durante a execucao.</p>
+      </div>
+
+      <div class="current-lot-banner" id="currentLotBanner">
+        <strong>Nenhum lote ativo</strong>
+        <p>Assim que um arquivo for enviado, o lote atual aparece aqui com o status consolidado.</p>
+      </div>
+
+      <div class="result-metrics" id="processingMetrics"></div>
+
+      <div class="preview-pane">
+        <div class="preview-pane-header">
+          <strong>Fila e andamento da automacao</strong>
+          <span id="processingHint">Sem lote em execucao no momento</span>
+        </div>
+        <div class="progress-strip" id="processingStrip"></div>
+      </div>
+
+      <div class="preview-pane">
+        <div class="preview-pane-header">
+          <strong>Linhas do lote atual</strong>
+          <span id="processingLineCount">0 linha(s)</span>
+        </div>
+        <div class="table-scroll">
+          <table class="email-table-preview">
+            <thead>
+              <tr>
+                <th>Linha</th>
+                <th>Empresa</th>
+                <th>Operadora</th>
+                <th>Referencia</th>
+                <th>Status</th>
+                <th>Erro</th>
+                <th>Acao</th>
+              </tr>
+            </thead>
+            <tbody id="processingTableBody">
+              <tr><td colspan="7">Nenhum lote carregado.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel bot-screen" data-bot-screen="results">
+      <div class="panel-heading">
+        <span class="panel-tag">Tela 3</span>
+        <h2>Resultados do lote</h2>
+        <p>Filtre por empresa, operadora e status. Depois baixe a planilha de retorno, o ZIP do lote e os logs consolidados.</p>
+      </div>
+
+      <div class="filter-grid">
+        <label class="field">
+          <span>Empresa</span>
+          <select id="filterEmpresa" class="field-select">
+            <option value="">Todas</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Operadora</span>
+          <select id="filterOperadora" class="field-select">
+            <option value="">Todas</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Status</span>
+          <select id="filterStatus" class="field-select">
+            <option value="">Todos</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="result-metrics" id="resultMetrics"></div>
+      <div class="result-table-actions" id="resultDownloads"></div>
+
+      <div class="preview-pane">
+        <div class="preview-pane-header">
+          <strong>Retorno por linha</strong>
+          <span id="resultLineCount">0 linha(s)</span>
+        </div>
+        <div class="table-scroll">
+          <table class="email-table-preview">
+            <thead>
+              <tr>
+                <th>Linha</th>
+                <th>Empresa</th>
+                <th>Operadora</th>
+                <th>Status final</th>
+                <th>PDF</th>
+                <th>AE</th>
+                <th>Erro</th>
+                <th>Acoes</th>
+              </tr>
+            </thead>
+            <tbody id="resultTableBody">
+              <tr><td colspan="8">Nenhum resultado carregado.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel bot-screen" data-bot-screen="detail">
+      <div class="panel-heading">
+        <span class="panel-tag">Tela 4</span>
+        <h2>Detalhes por linha</h2>
+        <p>Veja os dados originais, o modelo normalizado, os arquivos baixados, o erro retornado e as evidencias tecnicas.</p>
+      </div>
+
+      <div class="detail-grid" id="lineDetailPanel">
+        <div class="empty-inline">Selecione uma linha em resultados, processamento ou historico para ver os detalhes aqui.</div>
+      </div>
+    </section>
+
+    <section class="panel bot-screen" data-bot-screen="history">
+      <div class="panel-heading">
+        <span class="panel-tag">Tela 5</span>
+        <h2>Historico de execucoes</h2>
+        <p>Reabra lotes anteriores, consulte indicadores e solicite reprocessamento por lote quando necessario.</p>
+      </div>
+
+      <div class="history-list" id="historyList">
+        <div class="empty-inline">Carregando historico do bot de faturas...</div>
+      </div>
+    </section>
+  </div>
+
+  <script src="./faturas.js?v=20260410-15"></script>
+</body>
+</html>
