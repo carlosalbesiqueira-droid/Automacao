@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import json
 from pathlib import Path
 from uuid import uuid4
 
@@ -60,6 +61,41 @@ class BotFaturasRuntime:
             session_file=Path("storage/tiflux/session.json"),
         )
         self.tiflux_jobs: dict[str, dict[str, object]] = {}
+        self.tiflux_jobs_root = self.storage.root / "_tiflux_jobs"
+        self.tiflux_jobs_root.mkdir(parents=True, exist_ok=True)
+        self._load_persisted_tiflux_jobs()
+
+    def tiflux_job_file(self, job_id: str) -> Path:
+        return self.tiflux_jobs_root / f"{job_id}.json"
+
+    def save_tiflux_job(self, payload: dict[str, object]) -> None:
+        job_id = str(payload["job_id"])
+        self.tiflux_jobs[job_id] = payload
+        self.tiflux_job_file(job_id).write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def load_tiflux_job(self, job_id: str) -> dict[str, object] | None:
+        cached = self.tiflux_jobs.get(job_id)
+        if cached:
+            return cached
+        target = self.tiflux_job_file(job_id)
+        if not target.exists():
+            return None
+        payload = json.loads(target.read_text(encoding="utf-8"))
+        self.tiflux_jobs[job_id] = payload
+        return payload
+
+    def _load_persisted_tiflux_jobs(self) -> None:
+        for target in sorted(self.tiflux_jobs_root.glob("*.json")):
+            try:
+                payload = json.loads(target.read_text(encoding="utf-8"))
+                job_id = str(payload.get("job_id", ""))
+                if job_id:
+                    self.tiflux_jobs[job_id] = payload
+            except Exception:
+                continue
 
 
 @asynccontextmanager
@@ -133,14 +169,22 @@ async def tiflux_google_sheet_run(
 ) -> TifluxGoogleSheetJobResponse:
     runtime = runtime_from_request(request)
     job_id = f"tiflux-sheet-{uuid4().hex[:12]}"
-    runtime.tiflux_jobs[job_id] = {
+    queued_job = {
         "ok": True,
         "job_id": job_id,
         "status": "queued",
         "spreadsheet_id": payload.spreadsheet_id,
         "worksheet_name": payload.worksheet_name,
         "message": "Processamento enfileirado.",
+        "updated_at": _job_timestamp(),
     }
+    runtime.save_tiflux_job(queued_job)
+    runtime.tiflux_sheet_service.set_job_banner(
+        payload.spreadsheet_id,
+        payload.worksheet_name,
+        job_id=job_id,
+        status_text="Processamento enfileirado.",
+    )
     background_tasks.add_task(
         _run_tiflux_google_sheet_job,
         runtime,
@@ -161,7 +205,7 @@ async def tiflux_google_sheet_run(
 @app.get("/v1/tiflux/google-sheet/jobs/{job_id}")
 async def tiflux_google_sheet_job_status(request: Request, job_id: str) -> dict[str, object]:
     runtime = runtime_from_request(request)
-    job = runtime.tiflux_jobs.get(job_id)
+    job = runtime.load_tiflux_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job do TiFlux nao encontrado.")
     return job
@@ -330,33 +374,65 @@ def _run_tiflux_google_sheet_job(
     spreadsheet_id: str,
     worksheet_name: str,
 ) -> None:
-    runtime.tiflux_jobs[job_id] = {
+    running_job = {
         "ok": True,
         "job_id": job_id,
         "status": "running",
         "spreadsheet_id": spreadsheet_id,
         "worksheet_name": worksheet_name,
         "message": "Processamento em andamento.",
+        "updated_at": _job_timestamp(),
     }
+    runtime.save_tiflux_job(running_job)
+    runtime.tiflux_sheet_service.set_job_banner(
+        spreadsheet_id,
+        worksheet_name,
+        job_id=job_id,
+        status_text="Processamento em andamento.",
+    )
     try:
         result = runtime.tiflux_sheet_service.process_google_sheet(
             spreadsheet_id=spreadsheet_id,
             worksheet_name=worksheet_name,
         )
-        runtime.tiflux_jobs[job_id] = {
+        completed_job = {
             "ok": True,
             "job_id": job_id,
             "status": "completed",
             "spreadsheet_id": spreadsheet_id,
             "worksheet_name": worksheet_name,
+            "updated_at": _job_timestamp(),
             **result,
         }
+        runtime.save_tiflux_job(completed_job)
+        runtime.tiflux_sheet_service.set_job_banner(
+            spreadsheet_id,
+            worksheet_name,
+            job_id=job_id,
+            status_text="Processamento conclu?do.",
+            reset_checkbox=True,
+        )
     except Exception as error:  # noqa: BLE001
-        runtime.tiflux_jobs[job_id] = {
+        failed_job = {
             "ok": False,
             "job_id": job_id,
             "status": "failed",
             "spreadsheet_id": spreadsheet_id,
             "worksheet_name": worksheet_name,
             "message": str(error),
+            "updated_at": _job_timestamp(),
         }
+        runtime.save_tiflux_job(failed_job)
+        runtime.tiflux_sheet_service.set_job_banner(
+            spreadsheet_id,
+            worksheet_name,
+            job_id=job_id,
+            status_text=f"Falha: {error}",
+            reset_checkbox=True,
+        )
+
+
+def _job_timestamp() -> str:
+    from datetime import datetime
+
+    return datetime.now().isoformat(timespec="seconds")

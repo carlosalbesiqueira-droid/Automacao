@@ -47,6 +47,10 @@ RESULT_HEADERS = [
     "EVIDENCIA",
 ]
 
+BUTTON_ACTION_CELL = "S2"
+BUTTON_STATUS_CELL = "T2"
+BUTTON_JOB_CELL = "U2"
+
 
 @dataclass(frozen=True, slots=True)
 class SheetFieldSpec:
@@ -124,35 +128,31 @@ class TifluxSheetService:
         if not parsed_rows:
             raise ValueError("Nenhuma linha valida encontrada. Preencha ao menos o numero do ticket e um campo para atualizar.")
 
+        self.update_button_status(
+            worksheet,
+            status_text=f"Processando {len(parsed_rows)} linha(s)...",
+        )
+        self.initialize_result_rows(worksheet, header_row, parsed_rows)
+
         ensure_directory(self.output_dir)
         ensure_directory(self.session_file.parent)
 
         summary: list[dict[str, Any]] = []
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=self.headless)
-            context_kwargs: dict[str, object] = {"viewport": {"width": 1600, "height": 1200}}
-            if self.session_file.exists():
-                context_kwargs["storage_state"] = str(self.session_file)
-            context = browser.new_context(**context_kwargs)
-            page = context.new_page()
-            page.set_default_timeout(self.browser_timeout_ms)
-
             first_url = ticket_url(DEFAULT_TIFLUX_BASE_URL, parsed_rows[0].ticket, DEFAULT_TIFLUX_ENTITY_PATH)
-            page.goto(first_url, wait_until="domcontentloaded")
-            page.wait_for_timeout(2000)
-            finish_login_if_needed(
+            context, page = self._create_tiflux_page(browser, use_saved_session=True)
+            context, page = self._ensure_authenticated_page(
+                browser=browser,
+                context=context,
                 page=page,
+                first_url=first_url,
                 email=tiflux_email,
                 password=tiflux_password,
-                auth_code=None,
-                headless=self.headless,
-                timeout_ms=self.browser_timeout_ms,
             )
-            page.goto(first_url, wait_until="domcontentloaded")
-            page.wait_for_timeout(2000)
-            save_storage_state(page, self.session_file)
 
             for item in parsed_rows:
+                self.mark_row_processing(worksheet, header_row, item)
                 result = self._process_sheet_row(page, item)
                 summary.append(result)
                 self._write_result_row(worksheet, item.row_number, header_row, result)
@@ -160,15 +160,140 @@ class TifluxSheetService:
             context.close()
             browser.close()
 
-        return {
+        payload = {
             "ok": True,
             "spreadsheet_id": spreadsheet_id,
             "worksheet_name": worksheet_name,
             "processed": len(summary),
             "updated": sum(1 for item in summary if item["status"] == "OK"),
-            "failed": sum(1 for item in summary if item["status"] != "OK"),
+            "failed": sum(1 for item in summary if item["status"] in {"ERRO", "ALERTA"}),
             "results": summary,
         }
+        self.update_button_status(
+            worksheet,
+            status_text=(
+                f"Concluído: {payload['updated']} OK, "
+                f"{sum(1 for item in summary if item['status'] == 'ALERTA')} alerta(s), "
+                f"{sum(1 for item in summary if item['status'] == 'ERRO')} erro(s)"
+            ),
+        )
+        return payload
+
+    def _create_tiflux_page(self, browser, *, use_saved_session: bool):
+        context_kwargs: dict[str, object] = {"viewport": {"width": 1600, "height": 1200}}
+        if use_saved_session and self.session_file.exists():
+            context_kwargs["storage_state"] = str(self.session_file)
+        context = browser.new_context(**context_kwargs)
+        page = context.new_page()
+        page.set_default_timeout(self.browser_timeout_ms)
+        return context, page
+
+    def _ensure_authenticated_page(
+        self,
+        *,
+        browser,
+        context,
+        page: Page,
+        first_url: str,
+        email: str,
+        password: str,
+    ):
+        page.goto(first_url, wait_until="domcontentloaded")
+        page.wait_for_timeout(2000)
+        if not is_login_screen(page):
+            return context, page
+
+        try:
+            finish_login_if_needed(
+                page=page,
+                email=email,
+                password=password,
+                auth_code=None,
+                headless=self.headless,
+                timeout_ms=self.browser_timeout_ms,
+            )
+        except Exception:
+            context.close()
+            context, page = self._create_tiflux_page(browser, use_saved_session=False)
+            page.goto(first_url, wait_until="domcontentloaded")
+            page.wait_for_timeout(2000)
+            finish_login_if_needed(
+                page=page,
+                email=email,
+                password=password,
+                auth_code=None,
+                headless=self.headless,
+                timeout_ms=self.browser_timeout_ms,
+            )
+
+        page.goto(first_url, wait_until="domcontentloaded")
+        page.wait_for_timeout(2000)
+        save_storage_state(page, self.session_file)
+        return context, page
+
+    def set_job_banner(
+        self,
+        spreadsheet_id: str,
+        worksheet_name: str,
+        *,
+        job_id: str,
+        status_text: str,
+        reset_checkbox: bool = False,
+    ) -> None:
+        client = self._build_google_client()
+        worksheet = client.open_by_key(spreadsheet_id).worksheet(worksheet_name)
+        self.update_button_status(
+            worksheet,
+            status_text=status_text,
+            job_id=job_id,
+            reset_checkbox=reset_checkbox,
+        )
+
+    def update_button_status(
+        self,
+        worksheet: gspread.Worksheet,
+        *,
+        status_text: str,
+        job_id: str | None = None,
+        reset_checkbox: bool = False,
+    ) -> None:
+        values = [[status_text]]
+        worksheet.update(range_name=BUTTON_STATUS_CELL, values=values, value_input_option="USER_ENTERED")
+        if job_id is not None:
+            worksheet.update(range_name=BUTTON_JOB_CELL, values=[[job_id]], value_input_option="USER_ENTERED")
+        if reset_checkbox:
+            worksheet.update(range_name=BUTTON_ACTION_CELL, values=[[False]], value_input_option="USER_ENTERED")
+
+    def initialize_result_rows(
+        self,
+        worksheet: gspread.Worksheet,
+        header_row: list[str],
+        parsed_rows: list["ParsedSheetRow"],
+    ) -> None:
+        for item in parsed_rows:
+            result = {
+                "status": "NA_FILA",
+                "message": "Linha identificada e aguardando processamento.",
+                "processed_at": now_iso(),
+                "fields_applied": ", ".join(update.spec.label for update in item.updates),
+                "evidence": "",
+            }
+            self._write_result_row(worksheet, item.row_number, header_row, result)
+
+    def mark_row_processing(
+        self,
+        worksheet: gspread.Worksheet,
+        header_row: list[str],
+        item: "ParsedSheetRow",
+    ) -> None:
+        result = {
+            "status": "PROCESSANDO",
+            "message": f"Processando ticket {item.ticket}...",
+            "processed_at": now_iso(),
+            "fields_applied": ", ".join(update.spec.label for update in item.updates),
+            "evidence": "",
+        }
+        self._write_result_row(worksheet, item.row_number, header_row, result)
 
     def _build_google_client(self) -> gspread.Client:
         credentials = build_google_credentials(GOOGLE_SCOPES)
