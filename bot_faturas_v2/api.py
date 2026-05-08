@@ -573,7 +573,10 @@ def _fail_stale_tiflux_job(runtime: BotFaturasRuntime, job: dict[str, object]) -
         updated = datetime.fromisoformat(updated_at)
     except ValueError:
         return job
-    if datetime.now() - updated < timedelta(minutes=12):
+    # Jobs created before the latest deploy may have been timestamped in UTC while
+    # the app now runs in the configured local timezone, so check both clocks.
+    possible_ages = (datetime.now() - updated, datetime.utcnow() - updated)
+    if max(possible_ages) < timedelta(minutes=12):
         return job
 
     failed_job = {
