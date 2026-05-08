@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 import json
 from pathlib import Path
 from uuid import uuid4
@@ -230,6 +231,7 @@ async def tiflux_google_sheet_job_status(request: Request, job_id: str) -> dict[
     job = runtime.load_tiflux_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job do TiFlux nao encontrado.")
+    job = _fail_stale_tiflux_job(runtime, job)
     return job
 
 
@@ -498,21 +500,42 @@ def _run_tiflux_batch_job(
     tickets: list[str],
     updates: dict[str, str],
 ) -> None:
+    ticket_count = len([ticket for ticket in tickets if str(ticket).strip()])
     running_job = {
         "ok": True,
         "job_id": job_id,
         "status": "running",
-        "ticket_count": len([ticket for ticket in tickets if str(ticket).strip()]),
+        "ticket_count": ticket_count,
         "message": "Processamento do lote TiFlux em andamento.",
         "updated_at": _job_timestamp(),
         "updates": updates,
         "tickets": tickets,
     }
     runtime.save_tiflux_job(running_job)
+
+    def save_progress(summary: list[dict[str, object]], total: int) -> None:
+        runtime.save_tiflux_job(
+            {
+                "ok": True,
+                "job_id": job_id,
+                "status": "running",
+                "ticket_count": total,
+                "processed": len(summary),
+                "updated": sum(1 for item in summary if item.get("status") == "OK"),
+                "failed": sum(1 for item in summary if item.get("status") in {"ERRO", "ALERTA"}),
+                "message": f"Processando lote TiFlux: {len(summary)} de {total} ticket(s).",
+                "updated_at": _job_timestamp(),
+                "updates": updates,
+                "tickets": tickets,
+                "results": summary,
+            }
+        )
+
     try:
         result = runtime.tiflux_sheet_service.process_ticket_batch(
             tickets=tickets,
             raw_updates=updates,
+            progress_callback=save_progress,
         )
         completed_job = {
             "ok": True,
@@ -539,6 +562,29 @@ def _run_tiflux_batch_job(
 
 
 def _job_timestamp() -> str:
-    from datetime import datetime
-
     return datetime.now().isoformat(timespec="seconds")
+
+
+def _fail_stale_tiflux_job(runtime: BotFaturasRuntime, job: dict[str, object]) -> dict[str, object]:
+    if str(job.get("status") or "") not in {"queued", "running"}:
+        return job
+    updated_at = str(job.get("updated_at") or "")
+    try:
+        updated = datetime.fromisoformat(updated_at)
+    except ValueError:
+        return job
+    if datetime.now() - updated < timedelta(minutes=12):
+        return job
+
+    failed_job = {
+        **job,
+        "ok": False,
+        "status": "failed",
+        "message": (
+            "Job ficou sem retorno por mais de 12 minutos. Provavel autenticacao do TiFlux "
+            "pendente/codigo de verificacao ou navegador travado antes do primeiro ticket."
+        ),
+        "updated_at": _job_timestamp(),
+    }
+    runtime.save_tiflux_job(failed_job)
+    return failed_job

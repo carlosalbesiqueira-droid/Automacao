@@ -160,6 +160,9 @@ def find_latest_tiflux_auth_code_info() -> tuple[str, int]:
 
 
 def wait_for_fresh_tiflux_auth_code(previous_arrival_time: int = 0, timeout_seconds: int = 45) -> str:
+    if not OUTLOOK_NOTIFICATIONS_DB.exists():
+        return ""
+
     deadline = time.time() + timeout_seconds
     latest_code = ""
     while time.time() < deadline:
@@ -262,11 +265,11 @@ def finish_login_if_needed(
         "\nSe preferir rodar totalmente em background, execute novamente com --auth-code.\n"
     )
     if headless:
-        typed_code = input("Codigo de autenticacao: ").strip()
-        if not fill_auth_code(page, typed_code):
-            raise RuntimeError("Nao foi possivel localizar os campos do codigo de autenticacao.")
-        click_submit_button(page)
-        return
+        raise RuntimeError(
+            "O TiFlux solicitou codigo de verificacao. Em servidor publico nao e possivel "
+            "ler o Outlook instalado na sua maquina; rode a automacao localmente ou informe "
+            "o codigo em uma etapa de autenticacao manual."
+        )
 
     wait_deadline = time.time() + max(timeout_ms / 1000, 180)
     print("Aguardando conclusao da autenticacao manual no navegador...")

@@ -6,7 +6,7 @@ import traceback
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import gspread
 from playwright.sync_api import Error, Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
@@ -238,7 +238,12 @@ class TifluxSheetService:
         )
         return payload
 
-    def process_ticket_batch(self, tickets: list[str], raw_updates: dict[str, Any]) -> dict[str, Any]:
+    def process_ticket_batch(
+        self,
+        tickets: list[str],
+        raw_updates: dict[str, Any],
+        progress_callback: Callable[[list[dict[str, Any]], int], None] | None = None,
+    ) -> dict[str, Any]:
         tiflux_email = DEFAULT_TIFLUX_EMAIL.strip()
         tiflux_password = DEFAULT_TIFLUX_PASSWORD
         if not tiflux_email or not tiflux_password:
@@ -277,6 +282,8 @@ class TifluxSheetService:
             for item in parsed_rows:
                 result = self._process_sheet_row(page, item)
                 summary.append(result)
+                if progress_callback:
+                    progress_callback(summary, len(parsed_rows))
 
             context.close()
             browser.close()
