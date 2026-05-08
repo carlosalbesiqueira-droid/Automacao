@@ -245,7 +245,7 @@ class TifluxSheetService:
         raw_updates: dict[str, Any],
         auth_code: str = "",
         auth_code_provider: Callable[[], str] | None = None,
-        progress_callback: Callable[[list[dict[str, Any]], int], None] | None = None,
+        progress_callback: Callable[[list[dict[str, Any]], int, str], None] | None = None,
     ) -> dict[str, Any]:
         tiflux_email = DEFAULT_TIFLUX_EMAIL.strip()
         tiflux_password = DEFAULT_TIFLUX_PASSWORD
@@ -285,10 +285,12 @@ class TifluxSheetService:
             )
 
             for item in parsed_rows:
+                if progress_callback:
+                    progress_callback(summary, len(parsed_rows), item.ticket)
                 result = self._process_sheet_row(page, item, auth_code=auth_code, auth_code_provider=auth_code_provider)
                 summary.append(result)
                 if progress_callback:
-                    progress_callback(summary, len(parsed_rows))
+                    progress_callback(summary, len(parsed_rows), "")
 
             context.close()
             browser.close()
@@ -531,31 +533,48 @@ class TifluxSheetService:
             modal_updates = [update for update in item.updates if update.spec.kind != "stage"]
             stage_updates = [update for update in item.updates if update.spec.kind == "stage"]
             mismatches: list[str] = []
-
-            if modal_updates:
-                click_area_de_faturas_tab(page)
-                open_edit_modal(page)
-                for update in modal_updates:
-                    set_modal_field_value(page, update.spec.label, update.value, update.spec.kind)
-                save_modal(page)
-
-                page.wait_for_timeout(1000)
-                open_edit_modal(page)
-                mismatches.extend(verify_modal_field_values(page, modal_updates))
+            errors: list[str] = []
 
             if stage_updates:
                 for update in stage_updates:
-                    set_stage_value(page, update.value)
-                    actual_stage = normalize_compare_value(read_stage_value(page), "stage")
-                    expected_stage = normalize_compare_value(update.value, "stage")
-                    if actual_stage != expected_stage:
-                        mismatches.append(update.spec.label)
+                    try:
+                        set_stage_value(page, update.value)
+                        actual_stage = normalize_compare_value(read_stage_value(page), "stage")
+                        expected_stage = normalize_compare_value(update.value, "stage")
+                        if actual_stage != expected_stage:
+                            mismatches.append(update.spec.label)
+                    except Exception as exc:  # noqa: BLE001
+                        errors.append(f"{update.spec.label}: {exc}")
+
+            if modal_updates:
+                try:
+                    click_area_de_faturas_tab(page)
+                    open_edit_modal(page)
+                    for update in modal_updates:
+                        set_modal_field_value(page, update.spec.label, update.value, update.spec.kind)
+                    save_modal(page)
+
+                    page.wait_for_timeout(700)
+                    open_edit_modal(page)
+                    mismatches.extend(verify_modal_field_values(page, modal_updates))
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(f"Area de Faturas: {exc}")
+
             evidence = str(take_screenshot(page, self.output_dir, item.ticket, "planilha_tiflux"))
+            if errors:
+                message = f"Atualizacao parcial com erro: {'; '.join(errors)}"
+                status = "ALERTA"
+            elif mismatches:
+                message = f"Validacao parcial: {', '.join(mismatches)}"
+                status = "ALERTA"
+            else:
+                message = "Campos salvos com sucesso."
+                status = "OK"
             return {
                 "row_number": item.row_number,
                 "ticket": item.ticket,
-                "status": "OK" if not mismatches else "ALERTA",
-                "message": "Campos salvos com sucesso." if not mismatches else f"Validacao parcial: {', '.join(mismatches)}",
+                "status": status,
+                "message": message,
                 "fields_applied": fields_applied,
                 "processed_at": now_iso(),
                 "evidence": evidence,

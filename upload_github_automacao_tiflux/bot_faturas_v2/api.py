@@ -555,7 +555,8 @@ def _run_tiflux_batch_job(
     }
     runtime.save_tiflux_job(running_job)
 
-    def save_progress(summary: list[dict[str, object]], total: int) -> None:
+    def save_progress(summary: list[dict[str, object]], total: int, current_ticket: str = "") -> None:
+        suffix = f" Ticket atual: {current_ticket}." if current_ticket else ""
         runtime.save_tiflux_job(
             {
                 "ok": True,
@@ -565,7 +566,7 @@ def _run_tiflux_batch_job(
                 "processed": len(summary),
                 "updated": sum(1 for item in summary if item.get("status") == "OK"),
                 "failed": sum(1 for item in summary if item.get("status") in {"ERRO", "ALERTA"}),
-                "message": f"Processando lote TiFlux: {len(summary)} de {total} ticket(s).",
+                "message": f"Processando lote TiFlux: {len(summary)} de {total} ticket(s).{suffix}",
                 "updated_at": _job_timestamp(),
                 "updates": updates,
                 "tickets": tickets,

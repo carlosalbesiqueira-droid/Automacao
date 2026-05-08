@@ -295,9 +295,9 @@ def save_storage_state(page: Page, session_file: Path) -> None:
 
 def click_area_de_faturas_tab(page: Page) -> None:
     strategies = (
-        lambda: page.get_by_role("tab", name=re.compile(r"\u00c1rea de Faturas", re.I)).click(),
-        lambda: page.get_by_text("\u00c1rea de Faturas", exact=True).click(),
-        lambda: page.locator("text=\u00c1rea de Faturas").first.click(),
+        lambda: page.get_by_role("tab", name=re.compile(r"\u00c1rea de Faturas", re.I)).click(timeout=2500),
+        lambda: page.get_by_text("\u00c1rea de Faturas", exact=True).click(timeout=2500),
+        lambda: page.locator("text=\u00c1rea de Faturas").first.click(timeout=2500),
     )
     last_error: Exception | None = None
     for strategy in strategies:
@@ -315,12 +315,12 @@ def open_edit_modal(page: Page) -> None:
         return
 
     strategies = (
-        lambda: page.get_by_role("button", name=re.compile(r"editar", re.I)).click(),
-        lambda: page.locator("button[title*='Editar']").first.click(),
-        lambda: page.locator("[aria-label*='Editar']").first.click(),
-        lambda: page.locator("div.ant-card-head-wrapper div.ant-card-extra .cursor-pointer").first.click(),
-        lambda: page.locator("div.ant-card-head-wrapper div.ant-card-extra span[role='img']").first.click(),
-        lambda: page.locator("div, section").filter(has=page.get_by_text("\u00c1rea de Faturas", exact=True)).locator("button").first.click(),
+        lambda: page.get_by_role("button", name=re.compile(r"editar", re.I)).click(timeout=2500),
+        lambda: page.locator("button[title*='Editar']").first.click(timeout=2500),
+        lambda: page.locator("[aria-label*='Editar']").first.click(timeout=2500),
+        lambda: page.locator("div.ant-card-head-wrapper div.ant-card-extra .cursor-pointer").first.click(timeout=2500),
+        lambda: page.locator("div.ant-card-head-wrapper div.ant-card-extra span[role='img']").first.click(timeout=2500),
+        lambda: page.locator("div, section").filter(has=page.get_by_text("\u00c1rea de Faturas", exact=True)).locator("button").first.click(timeout=2500),
     )
     last_error: Exception | None = None
     for strategy in strategies:
@@ -379,8 +379,8 @@ def fill_historico(page: Page, historico: str) -> None:
 
 
 def save_modal(page: Page) -> None:
-    page.get_by_role("button", name="Salvar").click()
-    page.wait_for_timeout(1500)
+    page.get_by_role("button", name="Salvar").click(timeout=4000)
+    page.wait_for_timeout(900)
 
 
 def take_screenshot(page: Page, output_dir: Path, ticket: str, suffix: str) -> Path:
