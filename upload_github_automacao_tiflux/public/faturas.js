@@ -50,7 +50,10 @@ const tifluxHistorico = document.getElementById('tifluxHistorico');
 const tifluxImpedimento = document.getElementById('tifluxImpedimento');
 const tifluxTratativas = document.getElementById('tifluxTratativas');
 const tifluxEstagio = document.getElementById('tifluxEstagio');
+const tifluxAuthPanel = document.getElementById('tifluxAuthPanel');
+const tifluxAuthForm = document.getElementById('tifluxAuthForm');
 const tifluxAuthCode = document.getElementById('tifluxAuthCode');
+const tifluxAuthButton = document.getElementById('tifluxAuthButton');
 const tifluxFaturaAssumida = document.getElementById('tifluxFaturaAssumida');
 const tifluxBoDt = document.getElementById('tifluxBoDt');
 const tifluxRpsNf = document.getElementById('tifluxRpsNf');
@@ -112,6 +115,10 @@ function attachEvents() {
   tifluxBatchForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     await handleTifluxBatchSubmit();
+  });
+  tifluxAuthForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    await handleTifluxAuthSubmit();
   });
 }
 
@@ -498,7 +505,6 @@ async function handleTifluxBatchSubmit() {
     envio_data: tifluxEnvio?.value || '',
     concluido_data: tifluxConcluido?.value || '',
   };
-  const authCode = String(tifluxAuthCode?.value || '').replace(/\D+/g, '');
 
   if (!tickets.length) {
     renderTifluxBatchError('Cole ao menos um ticket para processar no TiFlux.');
@@ -520,7 +526,7 @@ async function handleTifluxBatchSubmit() {
     const payload = await apiFetch('/v1/tiflux/batch/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tickets, updates, auth_code: authCode }),
+      body: JSON.stringify({ tickets, updates }),
     });
     state.tifluxBatchJob = {
       job_id: payload.job_id,
@@ -541,6 +547,38 @@ async function handleTifluxBatchSubmit() {
   }
 }
 
+async function handleTifluxAuthSubmit() {
+  const jobId = state.tifluxBatchJob?.job_id;
+  const authCode = String(tifluxAuthCode?.value || '').replace(/\D+/g, '');
+  if (!jobId) {
+    renderTifluxBatchError('Nenhum job TiFlux ativo para receber o codigo.');
+    return;
+  }
+  if (!authCode) {
+    renderTifluxBatchError('Informe o codigo de verificacao do TiFlux.');
+    return;
+  }
+
+  tifluxAuthButton.disabled = true;
+  tifluxAuthButton.querySelector('span').textContent = 'Enviando...';
+  try {
+    const payload = await apiFetch(`/v1/tiflux/jobs/${jobId}/auth-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ auth_code: authCode }),
+    });
+    state.tifluxBatchJob = { ...state.tifluxBatchJob, ...payload };
+    tifluxAuthCode.value = '';
+    renderTifluxBatchJob();
+    scheduleTifluxBatchPoll();
+  } catch (error) {
+    renderTifluxBatchError(error.message);
+  } finally {
+    tifluxAuthButton.disabled = false;
+    tifluxAuthButton.querySelector('span').textContent = 'Enviar código';
+  }
+}
+
 async function refreshTifluxBatchJob() {
   if (!state.tifluxBatchJob?.job_id) {
     return;
@@ -549,7 +587,7 @@ async function refreshTifluxBatchJob() {
     const payload = await apiFetch(`/v1/tiflux/google-sheet/jobs/${state.tifluxBatchJob.job_id}`);
     state.tifluxBatchJob = payload;
     renderTifluxBatchJob();
-    if (payload.status === 'queued' || payload.status === 'running') {
+    if (payload.status === 'queued' || payload.status === 'running' || payload.status === 'waiting_auth_code') {
       scheduleTifluxBatchPoll();
     } else {
       stopTifluxBatchPoll();
@@ -565,7 +603,7 @@ function scheduleTifluxBatchPoll() {
   if (!state.tifluxBatchJob?.job_id) {
     return;
   }
-  if (!['queued', 'running'].includes(String(state.tifluxBatchJob.status || ''))) {
+  if (!['queued', 'running', 'waiting_auth_code'].includes(String(state.tifluxBatchJob.status || ''))) {
     return;
   }
   state.tifluxPollTimer = window.setTimeout(() => {
@@ -581,6 +619,7 @@ function stopTifluxBatchPoll() {
 }
 
 function renderTifluxBatchLoading(message) {
+  tifluxAuthPanel?.classList.add('is-hidden');
   tifluxAssistantTitle.textContent = 'Executando lote TiFlux';
   tifluxAssistantText.textContent = message;
   tifluxAssistantList.innerHTML = `
@@ -593,6 +632,7 @@ function renderTifluxBatchLoading(message) {
 }
 
 function renderTifluxBatchError(message) {
+  tifluxAuthPanel?.classList.add('is-hidden');
   tifluxAssistantTitle.textContent = 'Falha no lote TiFlux';
   tifluxAssistantText.textContent = message;
   tifluxAssistantList.innerHTML = `
@@ -613,10 +653,22 @@ function renderTifluxBatchJob() {
   const jobStatus = String(job.status || '-');
   const jobMessage = job.error || job.message || 'Lote TiFlux em andamento.';
   const jobFailedCount = job.failed ?? (jobStatus === 'failed' ? (job.ticket_count || (job.tickets || []).length || 1) : 0);
+  const isWaitingAuthCode = jobStatus === 'waiting_auth_code';
+
+  tifluxAuthPanel?.classList.toggle('is-hidden', !isWaitingAuthCode);
+  if (isWaitingAuthCode) {
+    window.setTimeout(() => tifluxAuthCode?.focus(), 80);
+  }
 
   tifluxAssistantTitle.textContent = `Job ${job.job_id || '-'}`;
   tifluxAssistantText.textContent = jobMessage;
   tifluxAssistantList.innerHTML = `
+    ${isWaitingAuthCode ? `
+      <article class="assistant-item">
+        <strong>Aguardando codigo</strong>
+        <p>Digite o codigo recebido no painel de autenticacao para continuar este mesmo lote.</p>
+      </article>
+    ` : ''}
     <article class="assistant-item">
       <strong>Status atual</strong>
       <p>${escapeHtml(jobStatus)}</p>

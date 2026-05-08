@@ -329,11 +329,6 @@
               </label>
 
               <label class="field">
-                <span>C&oacute;digo TiFlux</span>
-                <input id="tifluxAuthCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="Opcional">
-              </label>
-
-              <label class="field">
                 <span>Fatura Assumida (Data)</span>
                 <input id="tifluxFaturaAssumida" type="date">
               </label>
@@ -397,6 +392,21 @@
           </aside>
         </div>
 
+        <div class="auth-code-panel is-hidden" id="tifluxAuthPanel">
+          <div>
+            <span class="panel-tag">Autentica&ccedil;&atilde;o TiFlux</span>
+            <h3>C&oacute;digo de verifica&ccedil;&atilde;o solicitado</h3>
+            <p>O bot encontrou a tela de c&oacute;digo do TiFlux. Cole o c&oacute;digo recebido e ele continua o mesmo lote.</p>
+          </div>
+          <form id="tifluxAuthForm" class="auth-code-form">
+            <input id="tifluxAuthCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="Digite o c&oacute;digo">
+            <button class="submit-button compact-submit" type="submit" id="tifluxAuthButton">
+              <span>Enviar c&oacute;digo</span>
+              <small>Continuar lote</small>
+            </button>
+          </form>
+        </div>
+
         <datalist id="tifluxImpedimentoOptions">
           <option value="Problema de Login no Fatura Fácil (Embratel)"></option>
           <option value="Sem Acesso ao site - Cliente SAAS"></option>
@@ -408,6 +418,13 @@
           <option value="Pendente Opedora - Validando trafego"></option>
           <option value="Emissão atrasada devido nova NFCOM"></option>
           <option value="AE (Arquivo Eletrônico) – Indisponível"></option>
+          <option value="Pendente Prorrogação"></option>
+          <option value="Fornecedor não disponibiliza portal"></option>
+          <option value="Não disponível – Fatura ou CNPJ não localizados nos acessos."></option>
+          <option value="PDF – Indisponível"></option>
+          <option value="Erro Upload – Portal"></option>
+          <option value="NF – Indisponível"></option>
+          <option value="NFPREF – Arquivo RPS não foi convertido em NF PREF"></option>
         </datalist>
 
         <datalist id="tifluxTratativasOptions">
@@ -429,13 +446,7 @@
           <option value="Validação de Ausência de trafego"></option>
           <option value="Validação de bloqueio/suspensão temporária"></option>
           <option value="Avaliar possível alteração de vencimento"></option>
-          <option value="NF PREF – Acompanhar conversão para NFPREFPendente Prorrogação"></option>
-          <option value="Fornecedor não disponibiliza portal"></option>
-          <option value="Não disponível – Fatura ou CNPJ não localizados nos acessos."></option>
-          <option value="PDF – Indisponível"></option>
-          <option value="Erro Upload – Portal"></option>
-          <option value="NF – Indisponível"></option>
-          <option value="NFPREF – Arquivo RPS não foi convertido em NF PREF"></option>
+          <option value="NF PREF – Acompanhar conversão para NFPREF"></option>
         </datalist>
 
         <div class="preview-pane">

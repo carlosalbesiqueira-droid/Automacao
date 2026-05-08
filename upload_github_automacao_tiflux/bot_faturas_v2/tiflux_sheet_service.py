@@ -63,6 +63,13 @@ FIELD_OPTIONS: dict[str, list[str]] = {
         "Pendente Opedora - Validando trafego",
         "Emissão atrasada devido nova NFCOM",
         "AE (Arquivo Eletrônico) – Indisponível",
+        "Pendente Prorrogação",
+        "Fornecedor não disponibiliza portal",
+        "Não disponível – Fatura ou CNPJ não localizados nos acessos.",
+        "PDF – Indisponível",
+        "Erro Upload – Portal",
+        "NF – Indisponível",
+        "NFPREF – Arquivo RPS não foi convertido em NF PREF",
     ],
     "tratativas_observacoes": [
         "Problemas com AE – Contatar a operadora",
@@ -83,13 +90,7 @@ FIELD_OPTIONS: dict[str, list[str]] = {
         "Validação de Ausência de trafego",
         "Validação de bloqueio/suspensão temporária",
         "Avaliar possível alteração de vencimento",
-        "NF PREF – Acompanhar conversão para NFPREFPendente Prorrogação",
-        "Fornecedor não disponibiliza portal",
-        "Não disponível – Fatura ou CNPJ não localizados nos acessos.",
-        "PDF – Indisponível",
-        "Erro Upload – Portal",
-        "NF – Indisponível",
-        "NFPREF – Arquivo RPS não foi convertido em NF PREF",
+        "NF PREF – Acompanhar conversão para NFPREF",
     ],
     "estagio": [
         "Pendente",
@@ -243,6 +244,7 @@ class TifluxSheetService:
         tickets: list[str],
         raw_updates: dict[str, Any],
         auth_code: str = "",
+        auth_code_provider: Callable[[], str] | None = None,
         progress_callback: Callable[[list[dict[str, Any]], int], None] | None = None,
     ) -> dict[str, Any]:
         tiflux_email = DEFAULT_TIFLUX_EMAIL.strip()
@@ -279,10 +281,11 @@ class TifluxSheetService:
                 email=tiflux_email,
                 password=tiflux_password,
                 auth_code=auth_code,
+                auth_code_provider=auth_code_provider,
             )
 
             for item in parsed_rows:
-                result = self._process_sheet_row(page, item, auth_code=auth_code)
+                result = self._process_sheet_row(page, item, auth_code=auth_code, auth_code_provider=auth_code_provider)
                 summary.append(result)
                 if progress_callback:
                     progress_callback(summary, len(parsed_rows))
@@ -319,6 +322,7 @@ class TifluxSheetService:
         email: str,
         password: str,
         auth_code: str = "",
+        auth_code_provider: Callable[[], str] | None = None,
     ):
         page.goto(first_url, wait_until="domcontentloaded")
         page.wait_for_timeout(2000)
@@ -331,6 +335,7 @@ class TifluxSheetService:
                 email=email,
                 password=password,
                 auth_code=auth_code,
+                auth_code_provider=auth_code_provider,
                 headless=self.headless,
                 timeout_ms=self.browser_timeout_ms,
             )
@@ -344,6 +349,7 @@ class TifluxSheetService:
                 email=email,
                 password=password,
                 auth_code=auth_code,
+                auth_code_provider=auth_code_provider,
                 headless=self.headless,
                 timeout_ms=self.browser_timeout_ms,
             )
@@ -475,7 +481,14 @@ class TifluxSheetService:
             parsed.append(ParsedSheetRow(row_number=row_number, ticket=ticket, updates=updates))
         return parsed
 
-    def _process_sheet_row(self, page: Page, item: "ParsedSheetRow", *, auth_code: str = "") -> dict[str, Any]:
+    def _process_sheet_row(
+        self,
+        page: Page,
+        item: "ParsedSheetRow",
+        *,
+        auth_code: str = "",
+        auth_code_provider: Callable[[], str] | None = None,
+    ) -> dict[str, Any]:
         fields_applied = ", ".join(update.spec.label for update in item.updates)
         if not item.ticket:
             return {
@@ -507,6 +520,7 @@ class TifluxSheetService:
                     email=DEFAULT_TIFLUX_EMAIL,
                     password=DEFAULT_TIFLUX_PASSWORD,
                     auth_code=auth_code,
+                    auth_code_provider=auth_code_provider,
                     headless=self.headless,
                     timeout_ms=self.browser_timeout_ms,
                 )

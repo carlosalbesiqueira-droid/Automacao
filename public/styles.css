@@ -3236,6 +3236,51 @@ body {
   grid-column: 1 / -1;
 }
 
+.auth-code-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 18px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 20px;
+  border: 1px solid rgba(56, 189, 248, 0.24);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(15, 111, 255, 0.22), transparent 36%),
+    rgba(8, 20, 36, 0.88);
+  box-shadow: 0 24px 70px rgba(15, 111, 255, 0.12);
+}
+
+.auth-code-panel h3 {
+  margin: 8px 0 8px;
+}
+
+.auth-code-panel p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.auth-code-form {
+  display: grid;
+  gap: 10px;
+}
+
+.auth-code-form input {
+  min-height: 54px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 18px;
+  background: rgba(2, 10, 22, 0.72);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.2rem;
+  letter-spacing: 0.16em;
+  padding: 0 18px;
+}
+
+.compact-submit {
+  min-height: 58px;
+}
+
 .bot-console-shell .preview-pane,
 .bot-console-shell .current-lot-banner,
 .bot-console-shell .mapping-list,

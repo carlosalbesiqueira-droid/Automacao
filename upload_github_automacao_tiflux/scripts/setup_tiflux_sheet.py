@@ -39,6 +39,13 @@ IMPEDIMENTO_OPTIONS = [
     "Pendente Opedora - Validando trafego",
     "Emissão atrasada devido nova NFCOM",
     "AE (Arquivo Eletrônico) – Indisponível",
+    "Pendente Prorrogação",
+    "Fornecedor não disponibiliza portal",
+    "Não disponível – Fatura ou CNPJ não localizados nos acessos.",
+    "PDF – Indisponível",
+    "Erro Upload – Portal",
+    "NF – Indisponível",
+    "NFPREF – Arquivo RPS não foi convertido em NF PREF",
 ]
 TRATATIVAS_OPTIONS = [
     "Problemas com AE – Contatar a operadora",
@@ -59,13 +66,7 @@ TRATATIVAS_OPTIONS = [
     "Validação de Ausência de trafego",
     "Validação de bloqueio/suspensão temporária",
     "Avaliar possível alteração de vencimento",
-    "NF PREF – Acompanhar conversão para NFPREFPendente Prorrogação",
-    "Fornecedor não disponibiliza portal",
-    "Não disponível – Fatura ou CNPJ não localizados nos acessos.",
-    "PDF – Indisponível",
-    "Erro Upload – Portal",
-    "NF – Indisponível",
-    "NFPREF – Arquivo RPS não foi convertido em NF PREF",
+    "NF PREF – Acompanhar conversão para NFPREF",
 ]
 ESTAGIO_OPTIONS = [
     "Pendente",

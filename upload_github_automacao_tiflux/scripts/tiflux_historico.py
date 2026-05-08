@@ -9,6 +9,7 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
+from typing import Callable
 
 from playwright.sync_api import Error, Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
 
@@ -228,6 +229,7 @@ def finish_login_if_needed(
     auth_code: str | None,
     headless: bool,
     timeout_ms: int,
+    auth_code_provider: Callable[[], str] | None = None,
 ) -> None:
     if not is_login_screen(page):
         return
@@ -249,6 +251,8 @@ def finish_login_if_needed(
         return
 
     resolved_auth_code = auth_code or wait_for_fresh_tiflux_auth_code(previous_auth_arrival_time)
+    if not resolved_auth_code and auth_code_provider:
+        resolved_auth_code = auth_code_provider()
     if resolved_auth_code and fill_auth_code(page, resolved_auth_code):
         click_submit_button(page)
         page.wait_for_timeout(3000)

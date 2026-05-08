@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
+import time
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, Request, UploadFile
@@ -62,6 +63,7 @@ class BotFaturasRuntime:
             session_file=Path("storage/tiflux/session.json"),
         )
         self.tiflux_jobs: dict[str, dict[str, object]] = {}
+        self.tiflux_auth_codes: dict[str, str] = {}
         self.tiflux_jobs_root = self.storage.root / "_tiflux_jobs"
         self.tiflux_jobs_root.mkdir(parents=True, exist_ok=True)
         self._load_persisted_tiflux_jobs()
@@ -87,6 +89,15 @@ class BotFaturasRuntime:
         payload = json.loads(target.read_text(encoding="utf-8"))
         self.tiflux_jobs[job_id] = payload
         return payload
+
+    def submit_tiflux_auth_code(self, job_id: str, auth_code: str) -> None:
+        code = "".join(ch for ch in str(auth_code or "") if ch.isdigit())
+        if not code:
+            raise ValueError("Informe o codigo de verificacao do TiFlux.")
+        self.tiflux_auth_codes[job_id] = code
+
+    def pop_tiflux_auth_code(self, job_id: str) -> str:
+        return self.tiflux_auth_codes.pop(job_id, "")
 
     def _load_persisted_tiflux_jobs(self) -> None:
         for target in sorted(self.tiflux_jobs_root.glob("*.json")):
@@ -145,6 +156,10 @@ class TifluxBatchRunRequest(BaseModel):
     tickets: list[str] = Field(default_factory=list)
     updates: dict[str, str] = Field(default_factory=dict)
     auth_code: str = Field(default="")
+
+
+class TifluxAuthCodeRequest(BaseModel):
+    auth_code: str = Field(..., min_length=4)
 
 
 class TifluxBatchJobResponse(BaseModel):
@@ -234,6 +249,30 @@ async def tiflux_google_sheet_job_status(request: Request, job_id: str) -> dict[
         raise HTTPException(status_code=404, detail="Job do TiFlux nao encontrado.")
     job = _fail_stale_tiflux_job(runtime, job)
     return job
+
+
+@app.post("/v1/tiflux/jobs/{job_id}/auth-code")
+async def tiflux_job_auth_code(request: Request, job_id: str, payload: TifluxAuthCodeRequest) -> dict[str, object]:
+    runtime = runtime_from_request(request)
+    job = runtime.load_tiflux_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job do TiFlux nao encontrado.")
+    if str(job.get("status") or "") != "waiting_auth_code":
+        raise HTTPException(status_code=409, detail="Este job nao esta aguardando codigo do TiFlux.")
+    try:
+        runtime.submit_tiflux_auth_code(job_id, payload.auth_code)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    runtime.save_tiflux_job(
+        {
+            **job,
+            "ok": True,
+            "status": "running",
+            "message": "Codigo recebido. Continuando autenticacao no TiFlux...",
+            "updated_at": _job_timestamp(),
+        }
+    )
+    return {"ok": True, "job_id": job_id, "status": "running", "message": "Codigo recebido."}
 
 
 @app.post("/v1/tiflux/batch/run", response_model=TifluxBatchJobResponse)
@@ -534,11 +573,43 @@ def _run_tiflux_batch_job(
             }
         )
 
+    def wait_for_auth_code() -> str:
+        current_job = runtime.load_tiflux_job(job_id) or running_job
+        runtime.save_tiflux_job(
+            {
+                **current_job,
+                "ok": True,
+                "status": "waiting_auth_code",
+                "message": "O TiFlux solicitou codigo de verificacao. Cole o codigo no painel para continuar.",
+                "updated_at": _job_timestamp(),
+                "requires_auth_code": True,
+            }
+        )
+        deadline = time.time() + 600
+        while time.time() < deadline:
+            code = runtime.pop_tiflux_auth_code(job_id)
+            if code:
+                current_job = runtime.load_tiflux_job(job_id) or running_job
+                runtime.save_tiflux_job(
+                    {
+                        **current_job,
+                        "ok": True,
+                        "status": "running",
+                        "message": "Codigo recebido. Validando acesso no TiFlux...",
+                        "updated_at": _job_timestamp(),
+                        "requires_auth_code": False,
+                    }
+                )
+                return code
+            time.sleep(2)
+        raise RuntimeError("Codigo de verificacao do TiFlux nao informado em ate 10 minutos.")
+
     try:
         result = runtime.tiflux_sheet_service.process_ticket_batch(
             tickets=tickets,
             raw_updates=updates,
             auth_code=auth_code,
+            auth_code_provider=wait_for_auth_code,
             progress_callback=save_progress,
         )
         completed_job = {
@@ -570,7 +641,7 @@ def _job_timestamp() -> str:
 
 
 def _fail_stale_tiflux_job(runtime: BotFaturasRuntime, job: dict[str, object]) -> dict[str, object]:
-    if str(job.get("status") or "") not in {"queued", "running"}:
+    if str(job.get("status") or "") not in {"queued", "running", "waiting_auth_code"}:
         return job
     updated_at = str(job.get("updated_at") or "")
     try:
