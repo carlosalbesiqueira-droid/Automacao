@@ -50,6 +50,7 @@ const tifluxHistorico = document.getElementById('tifluxHistorico');
 const tifluxImpedimento = document.getElementById('tifluxImpedimento');
 const tifluxTratativas = document.getElementById('tifluxTratativas');
 const tifluxEstagio = document.getElementById('tifluxEstagio');
+const tifluxAuthCode = document.getElementById('tifluxAuthCode');
 const tifluxFaturaAssumida = document.getElementById('tifluxFaturaAssumida');
 const tifluxBoDt = document.getElementById('tifluxBoDt');
 const tifluxRpsNf = document.getElementById('tifluxRpsNf');
@@ -497,6 +498,7 @@ async function handleTifluxBatchSubmit() {
     envio_data: tifluxEnvio?.value || '',
     concluido_data: tifluxConcluido?.value || '',
   };
+  const authCode = String(tifluxAuthCode?.value || '').replace(/\D+/g, '');
 
   if (!tickets.length) {
     renderTifluxBatchError('Cole ao menos um ticket para processar no TiFlux.');
@@ -518,7 +520,7 @@ async function handleTifluxBatchSubmit() {
     const payload = await apiFetch('/v1/tiflux/batch/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tickets, updates }),
+      body: JSON.stringify({ tickets, updates, auth_code: authCode }),
     });
     state.tifluxBatchJob = {
       job_id: payload.job_id,

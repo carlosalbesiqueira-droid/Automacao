@@ -242,6 +242,7 @@ class TifluxSheetService:
         self,
         tickets: list[str],
         raw_updates: dict[str, Any],
+        auth_code: str = "",
         progress_callback: Callable[[list[dict[str, Any]], int], None] | None = None,
     ) -> dict[str, Any]:
         tiflux_email = DEFAULT_TIFLUX_EMAIL.strip()
@@ -277,10 +278,11 @@ class TifluxSheetService:
                 first_url=first_url,
                 email=tiflux_email,
                 password=tiflux_password,
+                auth_code=auth_code,
             )
 
             for item in parsed_rows:
-                result = self._process_sheet_row(page, item)
+                result = self._process_sheet_row(page, item, auth_code=auth_code)
                 summary.append(result)
                 if progress_callback:
                     progress_callback(summary, len(parsed_rows))
@@ -316,6 +318,7 @@ class TifluxSheetService:
         first_url: str,
         email: str,
         password: str,
+        auth_code: str = "",
     ):
         page.goto(first_url, wait_until="domcontentloaded")
         page.wait_for_timeout(2000)
@@ -327,7 +330,7 @@ class TifluxSheetService:
                 page=page,
                 email=email,
                 password=password,
-                auth_code=None,
+                auth_code=auth_code,
                 headless=self.headless,
                 timeout_ms=self.browser_timeout_ms,
             )
@@ -340,7 +343,7 @@ class TifluxSheetService:
                 page=page,
                 email=email,
                 password=password,
-                auth_code=None,
+                auth_code=auth_code,
                 headless=self.headless,
                 timeout_ms=self.browser_timeout_ms,
             )
@@ -472,7 +475,7 @@ class TifluxSheetService:
             parsed.append(ParsedSheetRow(row_number=row_number, ticket=ticket, updates=updates))
         return parsed
 
-    def _process_sheet_row(self, page: Page, item: "ParsedSheetRow") -> dict[str, Any]:
+    def _process_sheet_row(self, page: Page, item: "ParsedSheetRow", *, auth_code: str = "") -> dict[str, Any]:
         fields_applied = ", ".join(update.spec.label for update in item.updates)
         if not item.ticket:
             return {
@@ -503,7 +506,7 @@ class TifluxSheetService:
                     page=page,
                     email=DEFAULT_TIFLUX_EMAIL,
                     password=DEFAULT_TIFLUX_PASSWORD,
-                    auth_code=None,
+                    auth_code=auth_code,
                     headless=self.headless,
                     timeout_ms=self.browser_timeout_ms,
                 )

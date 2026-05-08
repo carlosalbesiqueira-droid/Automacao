@@ -144,6 +144,7 @@ class TifluxGoogleSheetJobResponse(BaseModel):
 class TifluxBatchRunRequest(BaseModel):
     tickets: list[str] = Field(default_factory=list)
     updates: dict[str, str] = Field(default_factory=dict)
+    auth_code: str = Field(default="")
 
 
 class TifluxBatchJobResponse(BaseModel):
@@ -263,6 +264,7 @@ async def tiflux_batch_run(
         job_id,
         payload.tickets,
         payload.updates,
+        payload.auth_code,
     )
     return TifluxBatchJobResponse(
         ok=True,
@@ -499,6 +501,7 @@ def _run_tiflux_batch_job(
     job_id: str,
     tickets: list[str],
     updates: dict[str, str],
+    auth_code: str = "",
 ) -> None:
     ticket_count = len([ticket for ticket in tickets if str(ticket).strip()])
     running_job = {
@@ -535,6 +538,7 @@ def _run_tiflux_batch_job(
         result = runtime.tiflux_sheet_service.process_ticket_batch(
             tickets=tickets,
             raw_updates=updates,
+            auth_code=auth_code,
             progress_callback=save_progress,
         )
         completed_job = {
