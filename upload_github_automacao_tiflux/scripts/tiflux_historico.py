@@ -315,6 +315,8 @@ def open_edit_modal(page: Page) -> None:
         return
 
     strategies = (
+        lambda: page.locator("div, section").filter(has=page.get_by_text("Hist\u00f3rico da Fatura", exact=False)).locator("button, [role='button'], span[role='img']").first.click(timeout=2500),
+        lambda: page.locator("div, section").filter(has=page.get_by_text("Impedimento", exact=True)).locator("button, [role='button'], span[role='img']").first.click(timeout=2500),
         lambda: page.get_by_role("button", name=re.compile(r"editar", re.I)).click(timeout=2500),
         lambda: page.locator("button[title*='Editar']").first.click(timeout=2500),
         lambda: page.locator("[aria-label*='Editar']").first.click(timeout=2500),

@@ -548,7 +548,12 @@ class TifluxSheetService:
 
             if modal_updates:
                 try:
-                    click_area_de_faturas_tab(page)
+                    try:
+                        click_area_de_faturas_tab(page)
+                    except Exception:
+                        # Alguns links /entities_* ja abrem diretamente a area da fatura
+                        # ou escondem a aba no topo; nesse caso tentamos abrir o modal direto.
+                        pass
                     open_edit_modal(page)
                     for update in modal_updates:
                         set_modal_field_value(page, update.spec.label, update.value, update.spec.kind)
