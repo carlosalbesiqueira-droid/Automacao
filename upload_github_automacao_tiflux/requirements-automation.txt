@@ -1,0 +1,37 @@
+# Google Sheets / Google APIs
+gspread
+gspread-dataframe
+gspread-formatting
+google-api-python-client
+google-auth
+google-auth-oauthlib
+
+# Browser automation and portal navigation
+playwright
+requests
+beautifulsoup4
+lxml
+
+# Data handling and file generation
+pandas
+openpyxl
+XlsxWriter
+python-dotenv
+tenacity
+rapidfuzz
+tldextract
+Unidecode
+
+# PDF parsing / document support
+pdfplumber
+pypdf
+
+# CLI, validation and logging
+typer
+loguru
+pydantic
+pytest
+fastapi
+uvicorn
+python-multipart
+httpx

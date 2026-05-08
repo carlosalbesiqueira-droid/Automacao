@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Y3 Gestao Telecom | Central Fiscal Inteligente</title>
+  <script>
+    (function redirectToPanel() {
+      var isLocalHost = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
+      var isCanonicalPort = window.location.port === '3210';
+      if (isLocalHost && !isCanonicalPort) {
+        window.location.replace('http://localhost:3210/');
+      }
+    }());
+  </script>
+  <link rel="stylesheet" href="./styles.css?v=20260507-console">
+</head>
+<body data-flow="standardize" class="console-body">
+  <div class="console-shell">
+    <aside class="console-sidebar" aria-label="Navegacao principal">
+      <div class="console-brand">
+        <div class="brand-mark">Y3</div>
+        <div>
+          <p class="brand-name">Y3 Gestao Telecom</p>
+          <p class="brand-subtitle">Central Fiscal Inteligente</p>
+        </div>
+      </div>
+
+      <nav class="console-nav" aria-label="Modulos">
+        <button class="console-nav-item is-active" type="button" data-hub-view-trigger="standardize">
+          <span class="console-nav-icon">P</span>
+          <span>Padronizacao</span>
+        </button>
+        <button class="console-nav-item" type="button" data-hub-view-trigger="compare">
+          <span class="console-nav-icon">C</span>
+          <span>Comparativo</span>
+        </button>
+        <a class="console-nav-item" href="./faturas.html">
+          <span class="console-nav-icon">F</span>
+          <span>Bot de faturas</span>
+        </a>
+      </nav>
+
+      <div class="console-sidebar-footer">
+        <span class="status-badge status-badge-live" id="healthBadge">Verificando sistema</span>
+        <p>Automacao documental, validacao fiscal e comparativo de pendencias em um unico painel.</p>
+      </div>
+    </aside>
+
+    <main class="console-main">
+      <header class="console-topbar">
+        <div>
+          <span class="section-kicker">Operacao fiscal</span>
+          <h1>Centro de automacao documental</h1>
+        </div>
+        <div class="console-topbar-actions">
+          <button class="console-segment is-active" type="button" data-hub-view-trigger="standardize">Padronizacao</button>
+          <button class="console-segment" type="button" data-hub-view-trigger="compare">Comparativo</button>
+          <a class="console-segment" href="./faturas.html">Bot de faturas</a>
+        </div>
+      </header>
+
+      <section class="console-overview" aria-label="Resumo do processo">
+        <article class="console-metric">
+          <span>E-mail</span>
+          <strong>.eml</strong>
+          <small>Origem da leitura</small>
+        </article>
+        <article class="console-metric">
+          <span>Anexos</span>
+          <strong>PDF + XLS</strong>
+          <small>Documentos detectados</small>
+        </article>
+        <article class="console-metric">
+          <span>Saida</span>
+          <strong>Base final</strong>
+          <small>Planilha auditavel</small>
+        </article>
+        <article class="console-metric">
+          <span>Comparativo</span>
+          <strong>Pendencias</strong>
+          <small>Pedido x retorno</small>
+        </article>
+      </section>
+
+      <div class="hub-panel is-active" id="standardizeHubPanel" data-hub-panel="standardize">
+        <section class="console-module-header">
+          <div>
+            <span class="panel-tag">Padronizacao</span>
+            <h2>Transformar e-mail exportado em base fiscal padronizada</h2>
+            <p>Carregue o arquivo, confira a leitura e gere a planilha final com anexos, PDFs, links e tabelas identificadas.</p>
+          </div>
+
+          <div class="compact-stepper" aria-label="Etapas da padronizacao">
+            <span class="compact-step is-active">1 Upload</span>
+            <span class="compact-step">2 Previa</span>
+            <span class="compact-step">3 Processamento</span>
+            <span class="compact-step">4 Resultado</span>
+          </div>
+        </section>
+
+        <main class="console-workspace">
+          <section class="panel panel-form console-panel">
+            <div class="panel-heading">
+              <span class="panel-tag">Entrada</span>
+              <h2>Arquivo e parametros</h2>
+              <p>O processamento usa o arquivo <code>.eml</code> e a pasta de saida informada aqui.</p>
+            </div>
+
+            <form id="automationForm" class="automation-form">
+              <input type="hidden" name="mode" id="modeInput" value="upload">
+
+              <label class="upload-zone upload-zone-console" for="emlFile">
+                <input id="emlFile" type="file" name="emlFile" accept=".eml">
+                <span class="upload-icon">.EML</span>
+                <strong>Selecionar e-mail exportado</strong>
+                <p id="uploadText">Clique para escolher um arquivo <code>.eml</code> ou arraste-o para esta area.</p>
+              </label>
+
+              <label class="field">
+                <span>Pasta de saida</span>
+                <input type="text" name="output" value="output" placeholder="output">
+                <small>Os arquivos gerados ficam organizados por data e hora dentro desta pasta.</small>
+              </label>
+
+              <div class="console-action-row">
+                <button class="secondary-button" type="button" id="previewButton">
+                  <span>Gerar previa</span>
+                  <small>Validar remetente, anexos e tabelas antes de rodar</small>
+                </button>
+
+                <button class="submit-button" type="submit" id="submitButton">
+                  <span>Processar</span>
+                  <small>Gerar base padronizada e pacote completo</small>
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <aside class="panel panel-preview console-panel">
+            <div class="panel-heading">
+              <span class="panel-tag">Previa</span>
+              <h2>Leitura do e-mail</h2>
+              <p>Revise o conteudo detectado antes de executar a automacao.</p>
+            </div>
+
+            <div class="preview-state" id="previewState">
+              <strong>Aguardando anexo</strong>
+              <p>Envie um arquivo <code>.eml</code> para carregar a previa do e-mail em tempo real.</p>
+            </div>
+
+            <div class="preview-content is-hidden" id="previewContent">
+              <div class="preview-header preview-header-console">
+                <div class="preview-subject-wrap">
+                  <span class="preview-label">Assunto identificado</span>
+                  <h3 id="previewSubject">(sem assunto)</h3>
+                </div>
+                <div class="preview-header-actions">
+                  <span class="preview-source" id="previewSource">Arquivo .eml</span>
+                  <button class="secondary-button secondary-button-inline" type="button" id="openPreviewModalButton">
+                    <span>Expandir</span>
+                    <small>Visualizacao completa</small>
+                  </button>
+                </div>
+              </div>
+
+              <div class="preview-meta" id="previewMeta"></div>
+
+              <div class="preview-tab-shell">
+                <div class="preview-tab-bar" role="tablist" aria-label="Camadas da previa do e-mail">
+                  <button class="preview-tab-button is-active" type="button" data-preview-view="email">E-mail</button>
+                  <button class="preview-tab-button" type="button" data-preview-view="attachments">Anexos</button>
+                  <button class="preview-tab-button" type="button" data-preview-view="pdfs">PDFs</button>
+                  <button class="preview-tab-button" type="button" data-preview-view="links">Links</button>
+                  <button class="preview-tab-button" type="button" data-preview-view="spreadsheet">Planilha</button>
+                </div>
+
+                <div class="preview-tab-panel is-active" data-preview-panel="email">
+                  <div class="preview-pane">
+                    <div class="preview-pane-header">
+                      <strong>Corpo do e-mail</strong>
+                      <span id="previewAttachmentCount">0 anexos</span>
+                    </div>
+                    <pre class="preview-body" id="previewBody"></pre>
+                  </div>
+                </div>
+
+                <div class="preview-tab-panel" data-preview-panel="attachments">
+                  <div class="preview-pane">
+                    <div class="preview-pane-header">
+                      <strong>Anexos encontrados</strong>
+                      <span id="previewAttachmentHint">Selecione os arquivos que entram no processamento</span>
+                    </div>
+                    <div class="attachment-list" id="previewAttachments"></div>
+                  </div>
+                </div>
+
+                <div class="preview-tab-panel" data-preview-panel="pdfs">
+                  <div class="preview-pane">
+                    <div class="preview-pane-header">
+                      <strong>PDFs detectados</strong>
+                      <span id="previewPdfCount">0 PDF(s)</span>
+                    </div>
+                    <div class="attachment-list" id="previewPdfs"></div>
+                  </div>
+                </div>
+
+                <div class="preview-tab-panel" data-preview-panel="links">
+                  <div class="preview-pane">
+                    <div class="preview-pane-header">
+                      <strong>Links detectados</strong>
+                      <span id="previewLinkCount">0 link(s)</span>
+                    </div>
+                    <div class="attachment-list" id="previewLinks"></div>
+                  </div>
+                </div>
+
+                <div class="preview-tab-panel" data-preview-panel="spreadsheet">
+                  <div class="preview-pane">
+                    <div class="preview-pane-header">
+                      <strong>Tabelas identificadas</strong>
+                      <span id="previewTableCount">0 tabela(s)</span>
+                    </div>
+                    <div class="table-preview-list" id="previewTables"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </main>
+
+        <section class="panel panel-result console-panel console-result-panel">
+          <div class="panel-heading">
+            <span class="panel-tag">Resultado</span>
+            <h2>Base padronizada gerada</h2>
+            <p>Os downloads, indicadores e avisos da execucao aparecem aqui assim que o processamento terminar.</p>
+          </div>
+
+          <div class="result-placeholder" id="resultPlaceholder">
+            <strong>Pronto para processar</strong>
+            <p>Depois da execucao, a base padronizada, a planilha final e o resumo do e-mail aparecerao aqui para download.</p>
+          </div>
+
+          <div class="result-content is-hidden" id="resultContent">
+            <div class="result-header">
+              <div>
+                <span class="preview-label">Execucao</span>
+                <h3 id="resultTitle">Resultado</h3>
+              </div>
+              <span class="result-badge" id="resultBadge">Concluido</span>
+            </div>
+
+            <div class="result-metrics" id="resultMetrics"></div>
+            <div class="result-files" id="resultFiles"></div>
+
+            <div class="preview-pane">
+              <div class="preview-pane-header">
+                <strong>Base padronizada gerada pela automacao</strong>
+                <span id="resultCombinedCount">0 linha(s)</span>
+              </div>
+              <div class="table-preview-list" id="resultCombinedTable"></div>
+            </div>
+
+            <div class="warnings-box">
+              <div class="warnings-header">
+                <strong>Avisos de leitura</strong>
+                <span id="warningsCount">0</span>
+              </div>
+              <ul id="warningsList"></ul>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel panel-embedded is-hidden" id="compareHubPanel" data-hub-panel="compare">
+        <div class="console-module-header">
+          <div>
+            <span class="panel-tag">Comparativo</span>
+            <h2>Pedido versus retorno do cliente</h2>
+            <p>Carregue os dois lados, confira as previas separadas e gere a relacao final de pendencias.</p>
+          </div>
+
+          <div class="embedded-actions embedded-actions-console">
+            <a class="ghost-link" href="./comparativo.html" target="_blank" rel="noopener">Abrir em aba separada</a>
+            <button class="secondary-button secondary-button-inline" type="button" id="reloadCompareFrameButton">
+              <span>Recarregar</span>
+              <small>Atualizar modulo</small>
+            </button>
+          </div>
+        </div>
+
+        <div class="embedded-frame-shell embedded-frame-shell-console">
+          <iframe
+            id="compareFrame"
+            class="embedded-frame"
+            title="Comparativo Y3"
+            src="./comparativo.html?embed=1&v=20260409-19"
+            loading="lazy"
+          ></iframe>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-shell is-hidden" id="previewModal" aria-hidden="true">
+    <div class="modal-backdrop" data-modal-close></div>
+    <div class="modal-dialog modal-dialog-full">
+      <div class="modal-header">
+        <div>
+          <span class="panel-tag">Visualizacao completa</span>
+          <h2 id="previewModalTitle">Previa do e-mail</h2>
+        </div>
+        <button class="ghost-link ghost-button modal-close" type="button" data-modal-close>Fechar</button>
+      </div>
+      <div class="modal-body">
+        <div id="previewModalContent" class="modal-preview-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js?v=20260507-console"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+.git
+.gitignore
+.venv
+.pytest_cache
+node_modules
+output
+storage
+tmp-smoke
+tmp-smoke-web
+tmp_bot_faturas.csv
+__pycache__
+*.pyc
+*.pyo
+*.log
+google-service-account.json
+winged-tenure-492913-i4-d6e4140394c1.json
+coverage

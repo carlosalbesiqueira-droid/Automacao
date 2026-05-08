@@ -1,0 +1,40 @@
+Pasta pronta para atualizar o repositório GitHub usado pelo Railway.
+
+Como usar:
+
+1. Abra o repositório `carlosalbesiqueira-droid/Automacao` no GitHub.
+2. Use a opção de upload/adicionar arquivos no repositório.
+3. Envie o CONTEUDO desta pasta, preservando as pastas:
+   - `bot_faturas_v2/`
+   - `public/`
+   - `scripts/`
+   - `src/`
+4. Sobrescreva os arquivos existentes quando o GitHub pedir.
+5. Faça o commit na branch `main`.
+
+Importante:
+
+- Não suba a pasta `upload_github_automacao_tiflux` como uma subpasta do repositório.
+- O certo é abrir esta pasta e enviar os arquivos/pastas que estão DENTRO dela.
+- Depois do commit, volte no Railway e faça um novo `Redeploy`.
+
+Arquivos principais deste pacote:
+
+- `Dockerfile`
+- `railway.json`
+- `package.json`
+- `package-lock.json`
+- `requirements-automation.txt`
+- `requirements-automation-lock.txt`
+- `src/server.js`
+- `bot_faturas_v2/*.py`
+- `scripts/run_bot_faturas_api.py`
+- `scripts/start_railway.sh`
+- `scripts/tiflux_historico.py`
+- `scripts/setup_tiflux_sheet.py`
+
+Depois do redeploy no Railway, testar:
+
+- `/api/health/full`
+- `/bot-faturas-api/health`
+- `/bot-faturas-api/v1/tiflux/google-sheet/template`

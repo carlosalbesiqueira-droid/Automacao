@@ -1,0 +1,14 @@
+/node_modules/
+/output/
+/storage/
+/test-results/
+/.env
+/.venv/
+__pycache__/
+*.pyc
+/google-service-account.json
+/winged-tenure-492913-i4-d6e4140394c1.json
+/input_email_y3.eml
+/tmp_*.pdf
+*.log
+/coverage/
