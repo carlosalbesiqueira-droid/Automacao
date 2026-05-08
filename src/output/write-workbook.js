@@ -9,10 +9,12 @@ async function writeOutputWorkbook({
   email,
   rows,
   pendingRows = [],
+  differenceRows = [],
   warnings,
   selectedTables = [],
   generalTable = null,
   pendingTable = null,
+  differenceTable = null,
 }) {
   await ensureDirectory(outputDirectory);
 
@@ -27,6 +29,10 @@ async function writeOutputWorkbook({
 
   if (Array.isArray(pendingRows) && pendingRows.length) {
     writeNormalizedSheet(workbook, pendingRows, 'Pendencias Remanescentes');
+  }
+
+  if (Array.isArray(differenceRows) && differenceRows.length) {
+    writeNormalizedSheet(workbook, differenceRows, 'Diferencas Entre Bases');
   }
 
   selectedTables.forEach((table, index) => {
@@ -74,10 +80,28 @@ async function writeOutputWorkbook({
     await pendingWorkbook.xlsx.writeFile(pendingFilePath);
   }
 
+  let differenceFilePath = '';
+  if ((Array.isArray(differenceRows) && differenceRows.length) || (differenceTable && differenceTable.headers.length)) {
+    const differenceWorkbook = new ExcelJS.Workbook();
+    differenceWorkbook.creator = 'Codex';
+    differenceWorkbook.created = new Date();
+
+    if (Array.isArray(differenceRows) && differenceRows.length) {
+      writeNormalizedSheet(differenceWorkbook, differenceRows, 'Diferencas Entre Bases');
+    } else if (differenceTable && Array.isArray(differenceTable.headers) && differenceTable.headers.length) {
+      writeTableSheet(differenceWorkbook, differenceTable, 'Diferencas Entre Bases');
+    }
+
+    const differenceFileName = `diferencas_entre_bases_${timestamp}.xlsx`;
+    differenceFilePath = path.join(outputDirectory, differenceFileName);
+    await differenceWorkbook.xlsx.writeFile(differenceFilePath);
+  }
+
   return {
     workbookPath,
     generalFilePath,
     pendingFilePath,
+    differenceFilePath,
   };
 }
 
@@ -222,6 +246,7 @@ function applyCanonicalRowFormatting(excelRow, sourceRow) {
       column.key === 'rps'
       || column.key === 'dps'
       || column.key === 'cnpj'
+      || column.key === 'prestadorCnpj'
       || column.key === 'nfse'
       || column.type === 'date'
       || column.type === 'dateTime'

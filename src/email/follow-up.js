@@ -4,14 +4,32 @@ const { formatDate, normalizeWhitespace } = require('../utils/normalizers');
 const EMAIL_TABLE_COLUMNS = [
   { key: 'nfse', title: 'NFS-e' },
   { key: 'rpsDisplay', title: 'RPS' },
-  { key: 'emissao', title: 'Emissao' },
-  { key: 'tomador', title: 'Tomador de Servicos' },
+  { key: 'emissao', title: 'Emissão' },
+  { key: 'tomador', title: 'Tomador de Serviços' },
   { key: 'cnpj', title: 'CNPJ' },
-  { key: 'valorServico', title: 'Valor Servicos' },
+  { key: 'valorServico', title: 'Valor Serviços' },
+  { key: 'situacao', title: 'Situação' },
 ];
 
-function buildFollowUpDraft({ pendingRows, requestEmail, responseEmail, pendingFilePath }) {
+function buildFollowUpDraft({
+  pendingRows,
+  requestEmail,
+  responseEmail,
+  pendingFilePath,
+  mode = 'pending',
+  attachmentFilePath = '',
+  signatureImage = null,
+}) {
   const normalizedRows = Array.isArray(pendingRows) ? pendingRows : [];
+  const normalizedMode = mode === 'difference' ? 'difference' : 'pending';
+  const from = pickPreferredSender(
+    extractEmailAddresses(process.env.OUTLOOK_SENDER || ''),
+    extractEmailAddresses(process.env.MAIL_USER || ''),
+    extractEmailAddresses(requestEmail?.from),
+    extractEmailAddresses(requestEmail?.to),
+    extractEmailAddresses(responseEmail?.to),
+    extractEmailAddresses(responseEmail?.from),
+  );
   const to = joinEmailAddresses(
     extractEmailAddresses(responseEmail?.from),
     extractEmailAddresses(requestEmail?.to),
@@ -20,67 +38,92 @@ function buildFollowUpDraft({ pendingRows, requestEmail, responseEmail, pendingF
     extractEmailAddresses(requestEmail?.from).filter((address) => !includesEmail(to, address)),
   );
   const referenceSubject = normalizeWhitespace(
-    requestEmail?.subject || responseEmail?.subject || 'pendencias de NFS-e',
+    requestEmail?.subject || responseEmail?.subject || 'pendências de NFS-e',
   );
-  const subject = `Reforco de tratativa das NFs pendentes | ${referenceSubject}`;
-  const message = buildDefaultMessage(normalizedRows.length);
-  const attachmentPaths = pendingFilePath ? [pendingFilePath] : [];
+  const subject = normalizedMode === 'difference'
+    ? `Revisão das diferenças encontradas entre pedido e retorno | ${referenceSubject}`
+    : `Reforço de tratativa das NFs pendentes | ${referenceSubject}`;
+  const message = buildDefaultMessage(normalizedRows.length, normalizedMode);
+  const filePath = attachmentFilePath || pendingFilePath || '';
+  const attachmentPaths = filePath ? [filePath] : [];
 
   return composeFollowUpPayload({
+    from,
     to,
     cc,
     subject,
     message,
     pendingRows: normalizedRows,
     attachmentPaths,
+    mode: normalizedMode,
+    signatureImage,
   });
 }
 
-function composeFollowUpPayload({ to, cc, subject, message, pendingRows, attachmentPaths = [] }) {
+function composeFollowUpPayload({ from, to, cc, subject, message, pendingRows, attachmentPaths = [], mode = 'pending', signatureImage = null }) {
   const normalizedRows = Array.isArray(pendingRows) ? pendingRows : [];
+  const normalizedMode = mode === 'difference' ? 'difference' : 'pending';
   const normalizedMessage = normalizeWhitespaceBlocks(message);
   const normalizedSubject = normalizeWhitespace(subject);
+  const normalizedFrom = normalizeSingleEmail(from);
   const normalizedTo = normalizeEmailList(to);
   const normalizedCc = normalizeEmailList(cc);
   const normalizedAttachments = attachmentPaths
     .map((item) => String(item || '').trim())
     .filter(Boolean);
+  const normalizedSignature = normalizeSignatureImage(signatureImage);
 
   return {
+    from: normalizedFrom,
     to: normalizedTo,
     cc: normalizedCc,
     subject: normalizedSubject,
     message: normalizedMessage,
     pendingCount: normalizedRows.length,
+    mode: normalizedMode,
+    itemLabel: normalizedMode === 'difference' ? 'diferença(s)' : 'pendência(s)',
     attachmentPaths: normalizedAttachments,
     attachmentNames: normalizedAttachments.map((item) => path.basename(item)),
-    htmlBody: buildFollowUpHtml(normalizedMessage, normalizedRows),
-    textBody: buildFollowUpText(normalizedMessage, normalizedRows),
+    rows: normalizedRows,
+    signatureImageName: normalizedSignature?.fileName || '',
+    inlineAttachments: normalizedSignature ? [{ path: normalizedSignature.path, cid: normalizedSignature.cid }] : [],
+    htmlBody: buildFollowUpHtml(normalizedMessage, normalizedRows, normalizedMode, normalizedSignature),
+    textBody: buildFollowUpText(normalizedMessage, normalizedRows, normalizedMode),
   };
 }
 
-function buildDefaultMessage(pendingCount) {
-  const countLabel = pendingCount === 1
-    ? '1 NF que continua sem comprovacao oficial'
-    : `${pendingCount} NFs que continuam sem comprovacao oficial`;
+function buildDefaultMessage(pendingCount, mode = 'pending') {
+  const normalizedMode = mode === 'difference' ? 'difference' : 'pending';
+  const countLabel = normalizedMode === 'difference'
+    ? (pendingCount === 1
+      ? '1 diferença entre o pedido e o retorno do cliente'
+      : `${pendingCount} diferenças entre o pedido e o retorno do cliente`)
+    : (pendingCount === 1
+      ? '1 NF que continua sem comprovação oficial'
+      : `${pendingCount} NFs que continuam sem comprovação oficial`);
 
   return [
     'Prezados,',
     '',
-    `Apos a conferencia entre o relatorio enviado e o retorno recebido, identificamos ${countLabel}.`,
+    `Após a conferência entre o relatório enviado e o retorno recebido, identificamos ${countLabel}.`,
     '',
-    'Solicitamos, por gentileza, a tratativa dessas pendencias e o reenvio da documentacao correspondente.',
+    normalizedMode === 'difference'
+      ? 'Solicitamos, por gentileza, a revisão dessas diferenças e o reenvio da documentação correspondente quando aplicável.'
+      : 'Solicitamos, por gentileza, a tratativa dessas pendências e o reenvio da documentação correspondente.',
     '',
-    'Segue anexa a planilha com o detalhamento das pendencias remanescentes.',
+    normalizedMode === 'difference'
+      ? 'Segue anexa a planilha com o detalhamento das diferenças identificadas.'
+      : 'Segue anexa a planilha com o detalhamento das pendências remanescentes.',
     '',
     'Ficamos no aguardo.',
     '',
     'Atenciosamente,',
-    'Y3 Gestao Telecom',
+    'Y3 Gestão Telecom',
   ].join('\n');
 }
 
-function buildFollowUpHtml(message, pendingRows) {
+function buildFollowUpHtml(message, pendingRows, mode = 'pending', signatureImage = null) {
+  const normalizedMode = mode === 'difference' ? 'difference' : 'pending';
   const paragraphs = String(message || '')
     .split(/\n\s*\n/)
     .map((item) => normalizeWhitespace(item))
@@ -91,18 +134,32 @@ function buildFollowUpHtml(message, pendingRows) {
     .join('');
 
   const tableHtml = buildPendingTableHtml(pendingRows);
-  const countLabel = pendingRows.length === 1 ? '1 pendencia remanescente' : `${pendingRows.length} pendencias remanescentes`;
+  const countLabel = normalizedMode === 'difference'
+    ? (pendingRows.length === 1 ? '1 diferença encontrada' : `${pendingRows.length} diferenças encontradas`)
+    : (pendingRows.length === 1 ? '1 pendência remanescente' : `${pendingRows.length} pendências remanescentes`);
+  const headerLabel = normalizedMode === 'difference' ? 'Diferenças entre as bases' : 'Pendências remanescentes';
+  const footerLabel = normalizedMode === 'difference'
+    ? 'A planilha com o detalhamento das diferenças entre pedido e retorno segue anexa a este e-mail.'
+    : 'A planilha com o detalhamento das pendências remanescentes segue anexa a este e-mail.';
+  const signatureHtml = signatureImage
+    ? [
+        '<div style="margin-top:22px;padding-top:18px;border-top:1px solid #d6e6f4;">',
+        `  <img src="cid:${escapeHtml(signatureImage.cid)}" alt="Assinatura" style="max-width:320px;max-height:120px;display:block;">`,
+        '</div>',
+      ].join('')
+    : '';
 
   return [
     '<div style="font-family:Segoe UI,Arial,sans-serif;color:#10263d;background:#ffffff;">',
     '  <div style="max-width:980px;margin:0 auto;padding:24px;">',
     introHtml,
     '    <div style="margin:20px 0 12px 0;padding:14px 16px;border:1px solid #d6e6f4;border-radius:14px;background:#f5fbff;">',
-    `      <strong style="display:block;color:#0b4f75;font-size:14px;letter-spacing:0.06em;text-transform:uppercase;">Pendencias remanescentes</strong>`,
+    `      <strong style="display:block;color:#0b4f75;font-size:14px;letter-spacing:0.06em;text-transform:uppercase;">${escapeHtml(headerLabel)}</strong>`,
     `      <span style="display:block;margin-top:8px;font-size:16px;color:#10263d;">${escapeHtml(countLabel)}</span>`,
     '    </div>',
     tableHtml,
-    '    <p style="margin:18px 0 0 0;line-height:1.6;color:#425d76;">A planilha com o detalhamento das pendencias remanescentes segue anexa a este e-mail.</p>',
+    `    <p style="margin:18px 0 0 0;line-height:1.6;color:#425d76;">${escapeHtml(footerLabel)}</p>`,
+    signatureHtml,
     '  </div>',
     '</div>',
   ].join('');
@@ -112,7 +169,7 @@ function buildPendingTableHtml(rows) {
   if (!rows.length) {
     return [
       '<div style="padding:16px;border:1px dashed #d6e6f4;border-radius:14px;background:#fbfdff;color:#425d76;">',
-      'Nenhuma pendencia remanescente foi identificada nesta execucao.',
+      'Nenhuma pendência remanescente foi identificada nesta execução.',
       '</div>',
     ].join('');
   }
@@ -136,12 +193,15 @@ function buildPendingTableHtml(rows) {
   ].join('');
 }
 
-function buildFollowUpText(message, pendingRows) {
+function buildFollowUpText(message, pendingRows, mode = 'pending') {
+  const normalizedMode = mode === 'difference' ? 'difference' : 'pending';
   const baseMessage = normalizeWhitespaceBlocks(message);
-  const lines = [baseMessage, '', 'Pendencias remanescentes:'];
+  const lines = [baseMessage, '', normalizedMode === 'difference' ? 'Diferenças entre as bases:' : 'Pendências remanescentes:'];
 
   if (!pendingRows.length) {
-    lines.push('- Nenhuma pendencia remanescente identificada.');
+    lines.push(normalizedMode === 'difference'
+      ? '- Nenhuma diferença identificada.'
+      : '- Nenhuma pendência remanescente identificada.');
     return lines.join('\n');
   }
 
@@ -156,6 +216,18 @@ function buildFollowUpText(message, pendingRows) {
   });
 
   return lines.join('\n');
+}
+
+function normalizeSignatureImage(signatureImage) {
+  if (!signatureImage?.path || !signatureImage?.cid) {
+    return null;
+  }
+
+  return {
+    path: String(signatureImage.path).trim(),
+    cid: String(signatureImage.cid).trim(),
+    fileName: path.basename(String(signatureImage.path).trim()),
+  };
 }
 
 function formatEmailCell(key, row) {
@@ -216,6 +288,20 @@ function normalizeEmailList(value) {
       .filter(Boolean);
 
   return dedupe(list).join('; ');
+}
+
+function normalizeSingleEmail(value) {
+  if (!value) {
+    return '';
+  }
+
+  return extractEmailAddresses(value)[0] || '';
+}
+
+function pickPreferredSender(...groups) {
+  const candidates = dedupe(groups.flat());
+  const y3Address = candidates.find((address) => /@y3gestao\.com\.br$/i.test(address));
+  return y3Address || candidates[0] || '';
 }
 
 function dedupe(values) {

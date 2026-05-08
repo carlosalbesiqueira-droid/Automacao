@@ -153,6 +153,10 @@ function rowRichnessScore(row) {
     score += 4;
   }
 
+  if (row.prestadorCnpj) {
+    score += 3;
+  }
+
   if (row.tomador) {
     score += 4;
   }
@@ -181,7 +185,7 @@ function shouldPreferSecondaryValue(key, primaryValue, secondaryValue) {
     return alphanumericRichness(secondaryValue) > alphanumericRichness(primaryValue);
   }
 
-  if (key === 'cnpj') {
+  if (key === 'cnpj' || key === 'prestadorCnpj') {
     return !primaryValue && Boolean(secondaryValue);
   }
 

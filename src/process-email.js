@@ -98,21 +98,29 @@ async function processEmailAutomation(input) {
   const requestedRows = requestTable
     ? collapseDuplicateRows(normalizeEmailTable(requestTable, []))
     : [];
-  const { pendingRows, pendingTable } = buildPendingReport(requestedRows, normalizedFinalRows);
+  const {
+    pendingRows,
+    pendingTable,
+    differenceRows,
+    differenceTable,
+    differenceSummary,
+  } = buildPendingReport(requestedRows, normalizedFinalRows);
 
   if (selectedTables.length && !requestTable) {
     warnings.push('Nao foi possivel identificar automaticamente a tabela principal de pendencias solicitadas.');
   }
 
-  const { workbookPath, generalFilePath, pendingFilePath } = await writeOutputWorkbook({
+  const { workbookPath, generalFilePath, pendingFilePath, differenceFilePath } = await writeOutputWorkbook({
     outputDirectory,
     email,
     rows: normalizedFinalRows,
     pendingRows,
+    differenceRows,
     warnings,
     selectedTables,
     generalTable,
     pendingTable,
+    differenceTable,
   });
 
   const emailSummaryPath = path.join(outputDirectory, 'resumo_email.txt');
@@ -127,11 +135,15 @@ async function processEmailAutomation(input) {
     generalTable,
     pendingRows,
     pendingTable,
+    differenceRows,
+    differenceTable,
+    differenceSummary,
     warnings,
     outputDirectory,
     workbookPath,
     generalFilePath,
     pendingFilePath,
+    differenceFilePath,
     emailSummaryPath,
     selectedTables
   };
@@ -164,7 +176,13 @@ async function processEmailComparison(input) {
     warnings,
   );
 
-  const { pendingRows, pendingTable } = buildPendingReport(
+  const {
+    pendingRows,
+    pendingTable,
+    differenceRows,
+    differenceTable,
+    differenceSummary,
+  } = buildPendingReport(
     requestContext.requestedRows,
     responseContext.finalRows,
   );
@@ -182,15 +200,17 @@ async function processEmailComparison(input) {
 
   const comparisonEmailSummary = buildComparisonEmailSummary(requestEmail, responseEmail);
 
-  const { workbookPath, generalFilePath, pendingFilePath } = await writeOutputWorkbook({
+  const { workbookPath, generalFilePath, pendingFilePath, differenceFilePath } = await writeOutputWorkbook({
     outputDirectory,
     email: comparisonEmailSummary,
     rows: responseContext.finalRows,
     pendingRows,
+    differenceRows,
     warnings,
     selectedTables: combinedSelectedTables,
     generalTable: responseContext.generalTable,
     pendingTable,
+    differenceTable,
   });
 
   const emailSummaryPath = path.join(outputDirectory, 'resumo_comparativo.txt');
@@ -205,11 +225,17 @@ async function processEmailComparison(input) {
     ].join('\n\n'),
   );
 
+  const followUpRows = pendingRows.length ? pendingRows : differenceRows;
+  const followUpMode = pendingRows.length ? 'pending' : 'difference';
+  const followUpAttachmentPath = pendingRows.length ? pendingFilePath : differenceFilePath;
+
   const followUpDraft = buildFollowUpDraft({
-    pendingRows,
+    pendingRows: followUpRows,
     requestEmail,
     responseEmail,
-    pendingFilePath,
+    pendingFilePath: followUpAttachmentPath,
+    attachmentFilePath: followUpAttachmentPath,
+    mode: followUpMode,
   });
 
   return {
@@ -221,15 +247,21 @@ async function processEmailComparison(input) {
     generalTable: responseContext.generalTable,
     pendingRows,
     pendingTable,
+    differenceRows,
+    differenceTable,
+    differenceSummary,
     warnings,
     outputDirectory,
     workbookPath,
     generalFilePath,
     pendingFilePath,
+    differenceFilePath,
     emailSummaryPath,
     selectedTables: combinedSelectedTables,
     pdfAttachments: responseContext.pdfAttachments,
     followUpDraft,
+    followUpRows,
+    followUpMode,
   };
 }
 
@@ -661,7 +693,7 @@ function shouldPreferSupplementalValue(key, primaryValue, supplementalValue) {
     return alphanumericRichness(supplementalValue) > alphanumericRichness(primaryValue);
   }
 
-  if (key === 'cnpj') {
+  if (key === 'cnpj' || key === 'prestadorCnpj') {
     return !primaryValue && Boolean(supplementalValue);
   }
 
@@ -714,6 +746,7 @@ async function enrichRowsFromNoteLinks(rows, attachmentsDirectory, warnings) {
 function needsNoteLinkEnrichment(row) {
   return !row.tomador
     || !row.cnpj
+    || !row.prestadorCnpj
     || row.valorServico == null
     || row.valorServico === ''
     || row.issDevido == null

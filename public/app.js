@@ -1,6 +1,7 @@
 let apiBase = '';
 const currentFlow = document.body?.dataset.flow || 'standardize';
 const isCompareFlow = currentFlow === 'compare';
+let compareFrameHeight = 0;
 
 const form = document.getElementById('automationForm');
 const submitButton = document.getElementById('submitButton');
@@ -20,6 +21,16 @@ const previewAttachmentCount = document.getElementById('previewAttachmentCount')
 const previewAttachmentHint = document.getElementById('previewAttachmentHint');
 const previewTables = document.getElementById('previewTables');
 const previewTableCount = document.getElementById('previewTableCount');
+const previewPdfs = document.getElementById('previewPdfs');
+const previewPdfCount = document.getElementById('previewPdfCount');
+const previewLinks = document.getElementById('previewLinks');
+const previewLinkCount = document.getElementById('previewLinkCount');
+const previewTabButtons = Array.from(document.querySelectorAll('[data-preview-view]'));
+const previewTabPanels = Array.from(document.querySelectorAll('[data-preview-panel]'));
+const openPreviewModalButton = document.getElementById('openPreviewModalButton');
+const previewModal = document.getElementById('previewModal');
+const previewModalContent = document.getElementById('previewModalContent');
+const previewModalTitle = document.getElementById('previewModalTitle');
 const hubViewButtons = Array.from(document.querySelectorAll('[data-hub-view-trigger]'));
 const hubPanels = Array.from(document.querySelectorAll('[data-hub-panel]'));
 const hubSummaryCards = Array.from(document.querySelectorAll('[data-hub-summary]'));
@@ -27,6 +38,7 @@ const compareHubPanel = document.getElementById('compareHubPanel');
 const standardizeHubPanel = document.getElementById('standardizeHubPanel');
 const compareFrame = document.getElementById('compareFrame');
 const reloadCompareFrameButton = document.getElementById('reloadCompareFrameButton');
+const compareEmbedSrc = './comparativo.html?embed=1&v=20260409-19';
 
 const resultPlaceholder = document.getElementById('resultPlaceholder');
 const resultContent = document.getElementById('resultContent');
@@ -54,6 +66,7 @@ async function boot() {
   attachFormHandler();
   attachResultHandlers();
   attachHubHandlers();
+  attachPreviewExperienceHandlers();
   setPreviewIdle('Envie um arquivo .eml para visualizar o e-mail antes do processamento.');
   const apiReady = await checkHealth();
   syncHubViewFromLocation();
@@ -78,7 +91,7 @@ function attachHubHandlers() {
       return;
     }
 
-    compareFrame.src = './comparativo.html?embed=1';
+    compareFrame.src = compareEmbedSrc;
     reloadCompareFrameButton.disabled = true;
     window.setTimeout(() => {
       reloadCompareFrameButton.disabled = false;
@@ -97,7 +110,13 @@ function attachHubHandlers() {
       return;
     }
 
-    compareFrame.style.height = `${Math.max(980, Math.ceil(nextHeight) + 24)}px`;
+    const normalizedHeight = Math.max(560, Math.ceil(nextHeight));
+    if (Math.abs(normalizedHeight - compareFrameHeight) < 4) {
+      return;
+    }
+
+    compareFrameHeight = normalizedHeight;
+    compareFrame.style.height = `${normalizedHeight}px`;
   });
 }
 
@@ -108,12 +127,12 @@ function syncHubViewFromLocation() {
 
   const fromHash = String(window.location.hash || '').replace(/^#/, '').toLowerCase();
   const view = fromHash === 'comparativo' || fromHash === 'compare' ? 'compare' : 'standardize';
-  setHubView(view, { updateHash: false });
+  setHubView(view, { updateHash: false, scroll: false });
 }
 
 function setHubView(view, options = {}) {
   const normalizedView = view === 'compare' ? 'compare' : 'standardize';
-  const { updateHash = true } = options;
+  const { updateHash = true, scroll = true } = options;
 
   hubViewButtons.forEach((button) => {
     const isActive = button.dataset.hubViewTrigger === normalizedView;
@@ -131,7 +150,7 @@ function setHubView(view, options = {}) {
   });
 
   if (compareFrame && normalizedView === 'compare' && !compareFrame.src) {
-    compareFrame.src = './comparativo.html?embed=1';
+    compareFrame.src = compareEmbedSrc;
   }
 
   if (updateHash) {
@@ -139,6 +158,10 @@ function setHubView(view, options = {}) {
     if (window.location.hash !== nextHash) {
       history.replaceState(null, '', `${window.location.pathname}${window.location.search}${nextHash}`);
     }
+  }
+
+  if (!scroll) {
+    return;
   }
 
   if (normalizedView === 'compare') {
@@ -175,6 +198,32 @@ function attachPreviewHandlers() {
   previewTables.addEventListener('change', (event) => {
     if (event.target.classList.contains('table-checkbox')) {
       updateTableSelectionLabel();
+    }
+  });
+}
+
+function attachPreviewExperienceHandlers() {
+  if (previewTabButtons.length) {
+    previewTabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        setPreviewView(button.dataset.previewView || 'email');
+      });
+    });
+  }
+
+  openPreviewModalButton?.addEventListener('click', () => {
+    openPreviewModal();
+  });
+
+  previewModal?.addEventListener('click', (event) => {
+    if (event.target.closest('[data-modal-close]')) {
+      closePreviewModal();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && previewModal && !previewModal.classList.contains('is-hidden')) {
+      closePreviewModal();
     }
   });
 }
@@ -372,6 +421,7 @@ function getSelectedTableIds() {
 function setPreviewIdle(message) {
   previewState.classList.remove('is-hidden');
   previewContent.classList.add('is-hidden');
+  previewState.classList.remove('is-loading');
   previewState.innerHTML = `
     <strong>Aguardando anexo</strong>
     <p>${escapeHtml(message)}</p>
@@ -381,6 +431,7 @@ function setPreviewIdle(message) {
 function setPreviewLoading() {
   previewState.classList.remove('is-hidden');
   previewContent.classList.add('is-hidden');
+  previewState.classList.add('is-loading');
   previewState.innerHTML = `
     <strong>Lendo o e-mail anexado</strong>
     <p>Estamos extraindo o conteudo do arquivo .eml para mostrar a previa da operacao.</p>
@@ -389,6 +440,7 @@ function setPreviewLoading() {
 
 function renderPreview(preview) {
   previewState.classList.add('is-hidden');
+  previewState.classList.remove('is-loading');
   previewContent.classList.remove('is-hidden');
 
   previewSubject.textContent = preview.subject || '(sem assunto)';
@@ -408,17 +460,32 @@ function renderPreview(preview) {
     ? preview.attachments.map((attachment) => attachmentOption(attachment)).join('')
     : '<div class="empty-inline">Nenhum anexo foi identificado neste e-mail.</div>';
 
+  const pdfAttachments = preview.attachments.filter((attachment) => attachment.kind === 'pdf');
+  previewPdfs.innerHTML = pdfAttachments.length
+    ? pdfAttachments.map((attachment) => attachmentStaticCard(attachment)).join('')
+    : '<div class="empty-inline">Nenhum PDF foi detectado neste e-mail.</div>';
+  previewPdfCount.textContent = `${pdfAttachments.length} PDF(s)`;
+
+  const detectedLinks = extractLinksFromPreview(preview);
+  previewLinks.innerHTML = detectedLinks.length
+    ? detectedLinks.map((link, index) => linkCard(link, index)).join('')
+    : '<div class="empty-inline">Nenhum link foi identificado no corpo do e-mail ou nos anexos mapeados.</div>';
+  previewLinkCount.textContent = `${detectedLinks.length} link(s)`;
+
   previewTables.innerHTML = preview.tables.length
     ? preview.tables.map((table, index) => tablePreview(table, index)).join('')
     : '<div class="empty-inline">Nenhuma tabela estruturada foi identificada no corpo do e-mail.</div>';
 
   updateAttachmentSelectionLabel();
   updateTableSelectionLabel();
+  setPreviewView('email');
+  syncPreviewModal(preview.subject || 'Previa do e-mail');
 }
 
 function renderPreviewError(message) {
   previewState.classList.remove('is-hidden');
   previewContent.classList.add('is-hidden');
+  previewState.classList.remove('is-loading');
   previewState.innerHTML = `
     <strong>Nao foi possivel carregar a previa</strong>
     <p>${escapeHtml(message)}</p>
@@ -476,6 +543,49 @@ function setResultLoading() {
   warningsList.innerHTML = '';
   warningsCount.textContent = '...';
   setResultView(isCompareFlow ? 'pending' : 'general');
+}
+
+function setPreviewView(view) {
+  const normalizedView = view || 'email';
+  previewTabButtons.forEach((button) => {
+    const isActive = button.dataset.previewView === normalizedView;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+
+  previewTabPanels.forEach((panel) => {
+    panel.classList.toggle('is-active', panel.dataset.previewPanel === normalizedView);
+  });
+}
+
+function openPreviewModal() {
+  if (!previewModal || previewContent.classList.contains('is-hidden')) {
+    return;
+  }
+
+  syncPreviewModal(previewSubject.textContent || 'Previa do e-mail');
+  previewModal.classList.remove('is-hidden');
+  previewModal.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+}
+
+function closePreviewModal() {
+  if (!previewModal) {
+    return;
+  }
+
+  previewModal.classList.add('is-hidden');
+  previewModal.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
+
+function syncPreviewModal(title) {
+  if (!previewModalContent || !previewContent) {
+    return;
+  }
+
+  previewModalTitle.textContent = title || 'Previa do e-mail';
+  previewModalContent.innerHTML = previewContent.innerHTML;
 }
 
 function renderSuccess(data) {
@@ -652,6 +762,30 @@ function attachmentOption(attachment) {
   `;
 }
 
+function attachmentStaticCard(attachment) {
+  return `
+    <article class="attachment-option">
+      <div class="attachment-copy">
+        <strong>${escapeHtml(attachment.filename || 'arquivo sem nome')}</strong>
+        <span>${escapeHtml(formatAttachmentMeta(attachment))}</span>
+      </div>
+      <span class="attachment-kind attachment-kind-pdf">PDF</span>
+    </article>
+  `;
+}
+
+function linkCard(link, index) {
+  return `
+    <article class="attachment-option">
+      <div class="attachment-copy">
+        <strong>Link ${index + 1}</strong>
+        <span>${escapeHtml(link)}</span>
+      </div>
+      <a class="attachment-kind attachment-kind-spreadsheet" href="${escapeHtml(link)}" target="_blank" rel="noopener">Abrir</a>
+    </article>
+  `;
+}
+
 function tablePreview(table, index) {
   return tableCardMarkup(table, {
     showSelector: true,
@@ -687,7 +821,7 @@ function tableCardMarkup(table, options = {}) {
     : '';
 
   const rowsHtml = limitedRows.length
-    ? limitedRows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(formatTableCell(cell))}</td>`).join('')}</tr>`).join('')
+    ? limitedRows.map((row) => `<tr>${row.map((cell, index) => `<td>${escapeHtml(formatTableCell(cell, table.headers?.[index]))}</td>`).join('')}</tr>`).join('')
     : `<tr><td colspan="${Math.max(table.columnCount || 1, 1)}">A tabela nao possui linhas de dados.</td></tr>`;
 
   const info = `${table.rowCount || limitedRows.length} linha(s) x ${table.columnCount || (table.headers || []).length} coluna(s)`;
@@ -759,6 +893,21 @@ function formatAttachmentMeta(attachment) {
   }
 
   return parts.join(' | ') || 'Sem metadados adicionais';
+}
+
+function extractLinksFromPreview(preview) {
+  const links = new Set();
+  const body = String(preview?.text || '');
+  const matches = body.match(/https?:\/\/[^\s<>"')]+/gi) || [];
+  matches.forEach((item) => links.add(item.trim()));
+
+  (preview?.attachments || []).forEach((attachment) => {
+    if (attachment?.filename && /^https?:\/\//i.test(attachment.filename)) {
+      links.add(String(attachment.filename).trim());
+    }
+  });
+
+  return Array.from(links);
 }
 
 function formatAttachmentKind(kind) {
@@ -920,10 +1069,76 @@ function compactFileName(value, maxLength = 52) {
   return `${head}...${tail}${extension}`;
 }
 
-function formatTableCell(value) {
+function formatTableCell(value, header = '') {
   if (value == null || value === '') {
     return '-';
   }
 
+  if (isDateColumnHeader(header)) {
+    return formatDateCellValue(value);
+  }
+
   return String(value);
+}
+
+function isDateColumnHeader(header) {
+  const normalized = String(header || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+  return normalized.includes('emissao')
+    || normalized.includes('data fato gerador')
+    || normalized.includes('dia de emissao');
+}
+
+function formatDateCellValue(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return buildBrazilianDateString(
+      value.getDate(),
+      value.getMonth() + 1,
+      value.getFullYear(),
+      value.getHours(),
+      value.getMinutes(),
+    );
+  }
+
+  const text = String(value).trim();
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::\d{2})?)?/);
+  if (isoMatch) {
+    return buildBrazilianDateString(
+      Number(isoMatch[3]),
+      Number(isoMatch[2]),
+      Number(isoMatch[1]),
+      isoMatch[4] == null ? null : Number(isoMatch[4]),
+      isoMatch[5] == null ? null : Number(isoMatch[5]),
+    );
+  }
+
+  const slashMatch = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::\d{2})?)?$/);
+  if (!slashMatch) {
+    return text;
+  }
+
+  let first = Number(slashMatch[1]);
+  let second = Number(slashMatch[2]);
+  const year = Number(slashMatch[3].length === 2 ? `20${slashMatch[3]}` : slashMatch[3]);
+  const hour = slashMatch[4] == null ? null : Number(slashMatch[4]);
+  const minute = slashMatch[5] == null ? null : Number(slashMatch[5]);
+
+  if (first <= 12 && second > 12) {
+    [first, second] = [second, first];
+  }
+
+  return buildBrazilianDateString(first, second, year, hour, minute);
+}
+
+function buildBrazilianDateString(day, month, year, hour = null, minute = null) {
+  const base = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${String(year)}`;
+  if (hour == null || minute == null) {
+    return base;
+  }
+
+  return `${base} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }

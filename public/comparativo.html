@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Y3 Gestao Telecom | Comparativo de Pendencias</title>
+  <title>Y3 Gestão Telecom | Comparativo de Pendências</title>
   <script>
     (function redirectToPanel() {
       var params = new URLSearchParams(window.location.search);
@@ -17,7 +17,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="./styles.css?v=20260409-12">
+  <link rel="stylesheet" href="./styles.css?v=20260409-16">
 </head>
 <body data-flow="compare-dual">
   <div class="app-shell">
@@ -29,7 +29,7 @@
         <div class="brand-mark">Y3</div>
         <div>
           <p class="brand-name">Y3 Gestao Telecom</p>
-          <p class="brand-subtitle">Comparativo de pendencias em dois portais</p>
+          <p class="brand-subtitle">Comparativo de pendências em dois portais</p>
         </div>
       </div>
 
@@ -301,64 +301,27 @@
         <div class="result-metrics" id="resultMetrics"></div>
         <div class="result-files" id="resultFiles"></div>
 
-        <div class="followup-panel is-hidden" id="followUpPanel">
-          <div class="preview-pane">
-            <div class="preview-pane-header">
-              <strong>Cobranca pronta para Outlook</strong>
-              <span id="followUpHint">Anexa automaticamente a planilha de pendencias remanescentes</span>
-            </div>
-
-            <div class="followup-grid">
-              <label class="field">
-                <span>Para</span>
-                <input id="followUpTo" type="text" placeholder="cliente@empresa.com">
-                <small>Voce pode ajustar os destinatarios antes de abrir ou enviar.</small>
-              </label>
-
-              <label class="field">
-                <span>CC</span>
-                <input id="followUpCc" type="text" placeholder="gestao@empresa.com">
-                <small>Use ponto e virgula para mais de um destinatario.</small>
-              </label>
-
-              <label class="field field-full">
-                <span>Assunto</span>
-                <input id="followUpSubject" type="text" placeholder="Reforco de tratativa das NFs pendentes">
-              </label>
-
-              <label class="field field-full">
-                <span>Mensagem</span>
-                <textarea id="followUpMessage" rows="10" placeholder="Mensagem do e-mail"></textarea>
-                <small>A tabela com as pendencias e a planilha anexa serao adicionadas automaticamente no Outlook.</small>
-              </label>
-            </div>
-
-            <div class="followup-meta" id="followUpMeta"></div>
-
-            <div class="followup-actions">
-              <button class="secondary-button" type="button" id="followUpDraftButton">
-                <span>Abrir rascunho no Outlook</span>
-                <small>Gera o e-mail com tabela e anexo para revisar antes do envio</small>
-              </button>
-
-              <button class="submit-button" type="button" id="followUpSendButton">
-                <span>Enviar agora pelo Outlook</span>
-                <small>Dispara o follow-up automaticamente usando o Outlook desktop</small>
-              </button>
-            </div>
-
-            <div class="followup-feedback is-hidden" id="followUpFeedback"></div>
-          </div>
-        </div>
-
         <div class="result-tab-shell">
           <div class="result-tab-bar" role="tablist" aria-label="Visualizacao do comparativo">
             <button
               class="result-tab-button is-active"
-              id="resultTabPending"
+              id="resultTabDifference"
               type="button"
               role="tab"
               aria-selected="true"
+              aria-controls="resultPanelDifference"
+              data-result-view="difference"
+            >
+              <span>Diferencas entre as bases</span>
+              <strong id="resultDifferenceTabCount">0 linha(s)</strong>
+            </button>
+
+            <button
+              class="result-tab-button"
+              id="resultTabPending"
+              type="button"
+              role="tab"
+              aria-selected="false"
               aria-controls="resultPanelPending"
               data-result-view="pending"
             >
@@ -380,7 +343,17 @@
             </button>
           </div>
 
-          <div class="result-tab-panel is-active" id="resultPanelPending" role="tabpanel" aria-labelledby="resultTabPending" data-result-panel="pending">
+          <div class="result-tab-panel is-active" id="resultPanelDifference" role="tabpanel" aria-labelledby="resultTabDifference" data-result-panel="difference">
+            <div class="preview-pane">
+              <div class="preview-pane-header">
+                <strong>Diferencas entre pedido e retorno</strong>
+                <span id="resultDifferenceCount">0 linha(s)</span>
+              </div>
+              <div class="table-preview-list" id="resultDifferenceTable"></div>
+            </div>
+          </div>
+
+          <div class="result-tab-panel" id="resultPanelPending" role="tabpanel" aria-labelledby="resultTabPending" data-result-panel="pending">
             <div class="preview-pane">
               <div class="preview-pane-header">
                 <strong>Pendencias remanescentes</strong>
@@ -408,10 +381,84 @@
           </div>
           <ul id="warningsList"></ul>
         </div>
+
+        <div class="followup-panel" id="followUpPanel">
+          <div class="preview-pane">
+            <div class="preview-pane-header">
+              <strong>E-mail de cobrança pronto para editar e enviar</strong>
+              <span id="followUpHint">Depois do comparativo, os campos abaixo serão preenchidos automaticamente</span>
+            </div>
+
+            <div class="followup-grid">
+              <label class="field">
+                <span>Remetente do e-mail</span>
+                <input id="followUpFrom" type="text" placeholder="carlos.siqueira@y3gestao.com.br">
+                <small>Use o e-mail da conta Outlook que vai abrir ou enviar a cobrança.</small>
+              </label>
+
+              <label class="field">
+                <span>Para</span>
+                <input id="followUpTo" type="text" placeholder="cliente@empresa.com">
+                <small>Você pode ajustar os destinatários antes de abrir ou enviar.</small>
+              </label>
+
+              <label class="field">
+                <span>CC</span>
+                <input id="followUpCc" type="text" placeholder="operacao@y3gestao.com.br; gestao@y3gestao.com.br">
+                <small>Use ponto e vírgula para mais de um destinatário.</small>
+              </label>
+
+              <label class="field field-full">
+                <span>Assunto</span>
+                <input id="followUpSubject" type="text" placeholder="Reforço de tratativa das NFs pendentes">
+              </label>
+
+              <label class="field field-full">
+                <span>Mensagem editável</span>
+                <textarea id="followUpMessage" rows="10" placeholder="Mensagem do e-mail"></textarea>
+                <small>A tabela com as pendências e a planilha anexa serão adicionadas automaticamente no Outlook. Se o Outlook não estiver disponível, copie a mensagem e envie pelo seu cliente de e-mail.</small>
+              </label>
+
+              <label class="field field-full">
+                <span>Assinatura em imagem (opcional)</span>
+                <input id="followUpSignatureImage" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.bmp">
+                <small id="followUpSignatureHint">Se necessário, anexe uma imagem de assinatura para entrar no e-mail.</small>
+              </label>
+            </div>
+
+            <div class="followup-meta" id="followUpMeta"></div>
+
+            <div class="followup-actions">
+              <button class="secondary-button" type="button" id="followUpDraftButton">
+                <span>Abrir rascunho no Outlook</span>
+                <small>Gera o e-mail para revisar antes do envio</small>
+              </button>
+
+              <button class="submit-button" type="button" id="followUpSendButton">
+                <span>Enviar agora pelo Outlook</span>
+                <small>Tenta enviar automaticamente usando o Outlook, quando disponível</small>
+              </button>
+            </div>
+
+            <div class="followup-actions followup-actions-secondary">
+              <button class="secondary-button" type="button" id="copyFollowUpSubjectButton">
+                <span>Copiar assunto</span>
+                <small>Útil quando o Outlook não estiver disponível</small>
+              </button>
+
+              <button class="secondary-button" type="button" id="copyFollowUpMessageButton">
+                <span>Copiar mensagem</span>
+                <small>Copie o texto e envie pelo cliente de e-mail de sua preferência</small>
+              </button>
+            </div>
+
+            <div class="followup-feedback is-hidden" id="followUpFeedback"></div>
+          </div>
+        </div>
       </div>
     </section>
   </div>
 
-  <script src="./comparativo.js?v=20260409-12"></script>
+  <script src="./comparativo.js?v=20260409-19"></script>
 </body>
 </html>

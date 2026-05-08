@@ -48,15 +48,38 @@ function scoreRequestTable(table) {
 
 function buildPendingReport(requestedRows, proofRows) {
   const normalizedRequestedRows = Array.isArray(requestedRows) ? requestedRows : [];
-  const normalizedProofRows = (Array.isArray(proofRows) ? proofRows : []).filter(hasGovernmentProof);
+  const normalizedResponseRows = Array.isArray(proofRows) ? proofRows : [];
+  const normalizedProofRows = normalizedResponseRows.filter(hasGovernmentProof);
 
-  const pendingRows = normalizedRequestedRows.filter((requestedRow) =>
-    !normalizedProofRows.some((proofRow) => requestedRowHasProof(requestedRow, proofRow)),
-  );
+  const pendingRows = normalizedRequestedRows.filter((requestedRow) => {
+    const matchedRows = normalizedResponseRows.filter((responseRow) => rowsMatchForComparison(requestedRow, responseRow));
+    if (!matchedRows.length) {
+      return true;
+    }
+
+    return !normalizedProofRows.some((proofRow) => requestedRowHasProof(requestedRow, proofRow));
+  });
+
+  const requestedOnlyRows = normalizedRequestedRows
+    .filter((requestedRow) => !normalizedResponseRows.some((responseRow) => rowsMatchForComparison(requestedRow, responseRow)))
+    .map((row) => decorateDifferenceRow(row, 'Somente no pedido'));
+
+  const responseOnlyRows = normalizedResponseRows
+    .filter((responseRow) => !normalizedRequestedRows.some((requestedRow) => rowsMatchForComparison(requestedRow, responseRow)))
+    .map((row) => decorateDifferenceRow(row, 'Somente no retorno'));
+
+  const differenceRows = [...requestedOnlyRows, ...responseOnlyRows];
 
   return {
     pendingRows,
+    differenceRows,
     pendingTable: buildPendingTable(pendingRows),
+    differenceTable: buildDifferenceTable(differenceRows),
+    differenceSummary: {
+      requestOnlyCount: requestedOnlyRows.length,
+      responseOnlyCount: responseOnlyRows.length,
+      totalCount: differenceRows.length,
+    },
   };
 }
 
@@ -65,6 +88,14 @@ function hasGovernmentProof(row) {
 }
 
 function requestedRowHasProof(requestedRow, proofRow) {
+  if (rowsMatchForComparison(requestedRow, proofRow)) {
+    return true;
+  }
+
+  return false;
+}
+
+function rowsMatchForComparison(requestedRow, proofRow) {
   if (documentNumbersMatch(requestedRow.nfse, proofRow.nfse)) {
     return true;
   }
@@ -101,6 +132,13 @@ function requestedRowHasProof(requestedRow, proofRow) {
   return false;
 }
 
+function decorateDifferenceRow(row, status) {
+  return {
+    ...row,
+    situacao: status,
+  };
+}
+
 function buildPendingTable(rows) {
   const headers = CANONICAL_COLUMNS.map((column) => column.title);
   const normalizedRows = (rows || []).map((row) =>
@@ -110,6 +148,22 @@ function buildPendingTable(rows) {
   return {
     id: 'pending-table',
     title: 'Diferenciacao das pendencias',
+    headers,
+    rows: normalizedRows,
+    rowCount: normalizedRows.length,
+    columnCount: headers.length,
+  };
+}
+
+function buildDifferenceTable(rows) {
+  const headers = CANONICAL_COLUMNS.map((column) => column.title);
+  const normalizedRows = (rows || []).map((row) =>
+    CANONICAL_COLUMNS.map((column) => formatPendingCell(column.key, row[column.key], row)),
+  );
+
+  return {
+    id: 'difference-table',
+    title: 'Diferencas entre as bases',
     headers,
     rows: normalizedRows,
     rowCount: normalizedRows.length,
@@ -189,4 +243,5 @@ module.exports = {
   buildPendingReport,
   pickRequestTable,
   requestedRowHasProof,
+  rowsMatchForComparison,
 };

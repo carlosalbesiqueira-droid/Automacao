@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Y3 Gestao Telecom | Bot de Faturas</title>
+  <link rel="stylesheet" href="./styles.css?v=20260507-faturas-console">
+</head>
+<body data-flow="bot-faturas-v2" class="console-body bot-console-body">
+  <div class="console-shell bot-console-shell">
+    <aside class="console-sidebar" aria-label="Navegacao do bot de faturas">
+      <div class="console-brand">
+        <div class="brand-mark">Y3</div>
+        <div>
+          <p class="brand-name">Y3 Gestao Telecom</p>
+          <p class="brand-subtitle">Bot de Faturas</p>
+        </div>
+      </div>
+
+      <nav class="console-nav" aria-label="Telas operacionais">
+        <button class="console-nav-item is-active" type="button" data-bot-screen-trigger="upload">
+          <span class="console-nav-icon">01</span>
+          <span>Upload do lote</span>
+        </button>
+        <button class="console-nav-item" type="button" data-bot-screen-trigger="processing">
+          <span class="console-nav-icon">02</span>
+          <span>Processamento</span>
+        </button>
+        <button class="console-nav-item" type="button" data-bot-screen-trigger="results">
+          <span class="console-nav-icon">03</span>
+          <span>Resultados</span>
+        </button>
+        <button class="console-nav-item" type="button" data-bot-screen-trigger="detail">
+          <span class="console-nav-icon">04</span>
+          <span>Detalhe da linha</span>
+        </button>
+        <button class="console-nav-item" type="button" data-bot-screen-trigger="history">
+          <span class="console-nav-icon">05</span>
+          <span>Hist&oacute;rico</span>
+        </button>
+        <button class="console-nav-item" type="button" data-bot-screen-trigger="tiflux">
+          <span class="console-nav-icon">06</span>
+          <span>TiFlux</span>
+        </button>
+      </nav>
+
+      <div class="console-sidebar-footer">
+        <span class="status-badge status-badge-live" id="healthBadge">Verificando backend</span>
+        <p>Fila, evid&ecirc;ncias, downloads e atualiza&ccedil;&otilde;es no TiFlux em uma tela operacional.</p>
+      </div>
+    </aside>
+
+    <main class="console-main">
+      <header class="console-topbar">
+        <div>
+          <span class="section-kicker">Central de faturas</span>
+          <h1>Operar lotes, baixar arquivos e atualizar TiFlux</h1>
+        </div>
+        <div class="console-topbar-actions">
+          <a class="console-segment" href="./index.html#padronizacao">Padroniza&ccedil;&atilde;o</a>
+          <a class="console-segment" href="./index.html#comparativo">Comparativo</a>
+          <a class="console-segment is-active" href="./faturas.html">Bot de faturas</a>
+        </div>
+      </header>
+
+      <section class="console-overview bot-ops-strip" aria-label="Resumo operacional">
+        <article class="console-metric">
+          <span>Entrada</span>
+          <strong>CSV / XLSX</strong>
+          <small>Planilha por lote</small>
+        </article>
+        <article class="console-metric">
+          <span>Fila</span>
+          <strong>Workers</strong>
+          <small>Processamento linha a linha</small>
+        </article>
+        <article class="console-metric">
+          <span>Sa&iacute;da</span>
+          <strong>PDF + AE</strong>
+          <small>Arquivos e logs audit&aacute;veis</small>
+        </article>
+        <article class="console-metric">
+          <span>TiFlux</span>
+          <strong>Batch</strong>
+          <small>Hist&oacute;rico, datas e est&aacute;gio</small>
+        </article>
+      </section>
+
+      <section class="console-module-header bot-module-header">
+        <div>
+          <span class="panel-tag">Opera&ccedil;&atilde;o</span>
+          <h2>Console do BOT DE FATURAS</h2>
+          <p>Escolha a etapa, acompanhe o lote ativo e execute atualiza&ccedil;&otilde;es diretas no TiFlux sem sair do painel.</p>
+        </div>
+
+        <div class="screen-switch compact-screen-switch" role="tablist" aria-label="Telas do bot de faturas">
+          <button class="screen-button is-active" type="button" data-bot-screen-trigger="upload">Upload</button>
+          <button class="screen-button" type="button" data-bot-screen-trigger="processing">Fila</button>
+          <button class="screen-button" type="button" data-bot-screen-trigger="results">Resultados</button>
+          <button class="screen-button" type="button" data-bot-screen-trigger="detail">Detalhe</button>
+          <button class="screen-button" type="button" data-bot-screen-trigger="history">Hist&oacute;rico</button>
+          <button class="screen-button" type="button" data-bot-screen-trigger="tiflux">TiFlux</button>
+        </div>
+      </section>
+
+      <section class="panel bot-screen console-panel is-active" data-bot-screen="upload">
+        <div class="panel-heading">
+          <span class="panel-tag">Upload</span>
+          <h2>Criar lote de busca de faturas</h2>
+          <p>Envie uma planilha <code>.csv</code>, <code>.xlsx</code>, <code>.xlsm</code> ou <code>.xls</code>. O bot valida as colunas, cria o lote e inicia a fila.</p>
+        </div>
+
+        <div class="upload-grid bot-work-grid">
+          <form id="botUploadForm" class="automation-form">
+            <label class="upload-zone upload-zone-console bot-upload-zone" for="spreadsheetFile">
+              <input id="spreadsheetFile" type="file" accept=".csv,.xlsx,.xlsm,.xls">
+              <span class="upload-icon">XLS</span>
+              <strong>Selecionar planilha do lote</strong>
+              <p id="spreadsheetFileLabel">Aceita CSV, XLSX, XLSM e XLS com leitura flex&iacute;vel de colunas.</p>
+            </label>
+
+            <div class="help-callout">
+              <strong>Colunas reconhecidas</strong>
+              <p>
+                Exemplos: <code>NUMERO TICKET</code>, <code>CLIENTE/EMPRESA</code>, <code>OPERADORA</code>,
+                <code>TITULO</code>, <code>MES_REFERENCIA</code>, <code>VENCIMENTO</code>, <code>LINK_PORTAL</code>,
+                <code>USUARIO_LOGIN</code>, <code>SENHA</code>, <code>COD_CLIENTE</code> e <code>CONTA</code>.
+              </p>
+            </div>
+
+            <button class="submit-button" type="submit" id="uploadButton">
+              <span>Criar lote e iniciar fila</span>
+              <small>Valida o arquivo, separa linhas inv&aacute;lidas e envia as v&aacute;lidas para processamento</small>
+            </button>
+          </form>
+
+          <aside class="assistant-card console-panel" id="uploadGuideCard">
+            <span class="assistant-eyebrow">Diagn&oacute;stico do upload</span>
+            <h3 id="uploadGuideTitle">Aguardando planilha</h3>
+            <p id="uploadGuideText">Depois do envio, o painel mostra lote criado, mapeamento reconhecido e bloqueios de valida&ccedil;&atilde;o.</p>
+            <div class="assistant-list" id="uploadGuideList">
+              <article class="assistant-item">
+                <strong>Campos m&iacute;nimos</strong>
+                <p>Empresa, operadora, identificador de conta ou t&iacute;tulo, refer&ecirc;ncia e credenciais v&aacute;lidas.</p>
+              </article>
+              <article class="assistant-item">
+                <strong>Seguran&ccedil;a</strong>
+                <p>Senhas n&atilde;o aparecem no painel e ficam tratadas pelo backend da automa&ccedil;&atilde;o.</p>
+              </article>
+            </div>
+          </aside>
+        </div>
+
+        <div class="mapping-list" id="uploadMappingPanel">
+          <div class="empty-inline">Depois do upload, o mapeamento de colunas reconhecidas aparece aqui.</div>
+        </div>
+      </section>
+
+      <section class="panel bot-screen console-panel" data-bot-screen="processing">
+        <div class="panel-heading">
+          <span class="panel-tag">Fila</span>
+          <h2>Acompanhamento do processamento</h2>
+          <p>Consulte o lote ativo, o progresso dos workers e o status corrente de cada linha durante a execu&ccedil;&atilde;o.</p>
+        </div>
+
+        <div class="current-lot-banner" id="currentLotBanner">
+          <strong>Nenhum lote ativo</strong>
+          <p>Assim que um arquivo for enviado, o lote atual aparece aqui com o status consolidado.</p>
+        </div>
+
+        <div class="result-metrics" id="processingMetrics"></div>
+
+        <div class="preview-pane">
+          <div class="preview-pane-header">
+            <strong>Fila e andamento da automa&ccedil;&atilde;o</strong>
+            <span id="processingHint">Sem lote em execu&ccedil;&atilde;o no momento</span>
+          </div>
+          <div class="progress-strip" id="processingStrip"></div>
+        </div>
+
+        <div class="preview-pane">
+          <div class="preview-pane-header">
+            <strong>Linhas do lote atual</strong>
+            <span id="processingLineCount">0 linha(s)</span>
+          </div>
+          <div class="table-scroll">
+            <table class="email-table-preview">
+              <thead>
+                <tr>
+                  <th>Linha</th>
+                  <th>Empresa</th>
+                  <th>Operadora</th>
+                  <th>Refer&ecirc;ncia</th>
+                  <th>Status</th>
+                  <th>Erro</th>
+                  <th>A&ccedil;&atilde;o</th>
+                </tr>
+              </thead>
+              <tbody id="processingTableBody">
+                <tr><td colspan="7">Nenhum lote carregado.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel bot-screen console-panel" data-bot-screen="results">
+        <div class="panel-heading">
+          <span class="panel-tag">Resultados</span>
+          <h2>Arquivos, retorno e logs do lote</h2>
+          <p>Filtre por empresa, operadora e status. Depois baixe a planilha de retorno, ZIP do lote e logs consolidados.</p>
+        </div>
+
+        <div class="filter-grid bot-filter-grid">
+          <label class="field">
+            <span>Empresa</span>
+            <select id="filterEmpresa" class="field-select">
+              <option value="">Todas</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Operadora</span>
+            <select id="filterOperadora" class="field-select">
+              <option value="">Todas</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Status</span>
+            <select id="filterStatus" class="field-select">
+              <option value="">Todos</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="result-metrics" id="resultMetrics"></div>
+        <div class="result-table-actions" id="resultDownloads"></div>
+
+        <div class="preview-pane">
+          <div class="preview-pane-header">
+            <strong>Retorno por linha</strong>
+            <span id="resultLineCount">0 linha(s)</span>
+          </div>
+          <div class="table-scroll">
+            <table class="email-table-preview">
+              <thead>
+                <tr>
+                  <th>Linha</th>
+                  <th>Empresa</th>
+                  <th>Operadora</th>
+                  <th>Status final</th>
+                  <th>PDF</th>
+                  <th>AE</th>
+                  <th>Erro</th>
+                  <th>A&ccedil;&otilde;es</th>
+                </tr>
+              </thead>
+              <tbody id="resultTableBody">
+                <tr><td colspan="8">Nenhum resultado carregado.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel bot-screen console-panel" data-bot-screen="detail">
+        <div class="panel-heading">
+          <span class="panel-tag">Detalhe</span>
+          <h2>Auditoria por linha</h2>
+          <p>Veja dados originais, modelo normalizado, arquivos baixados, erro retornado e evid&ecirc;ncias t&eacute;cnicas.</p>
+        </div>
+
+        <div class="detail-grid" id="lineDetailPanel">
+          <div class="empty-inline">Selecione uma linha em resultados, processamento ou hist&oacute;rico para ver os detalhes aqui.</div>
+        </div>
+      </section>
+
+      <section class="panel bot-screen console-panel" data-bot-screen="history">
+        <div class="panel-heading">
+          <span class="panel-tag">Hist&oacute;rico</span>
+          <h2>Execu&ccedil;&otilde;es anteriores</h2>
+          <p>Reabra lotes, consulte indicadores e solicite reprocessamento por lote quando necess&aacute;rio.</p>
+        </div>
+
+        <div class="history-list" id="historyList">
+          <div class="empty-inline">Carregando hist&oacute;rico do bot de faturas...</div>
+        </div>
+      </section>
+
+      <section class="panel bot-screen console-panel" data-bot-screen="tiflux">
+        <div class="panel-heading">
+          <span class="panel-tag">TiFlux</span>
+          <h2>Atualiza&ccedil;&atilde;o direta de tickets</h2>
+          <p>Cole v&aacute;rios tickets, preencha apenas os campos desejados e dispare o lote direto no TiFlux.</p>
+        </div>
+
+        <div class="upload-grid bot-work-grid">
+          <form id="tifluxBatchForm" class="automation-form">
+            <label class="field">
+              <span>Tickets</span>
+              <textarea id="tifluxTickets" rows="10" placeholder="Um ticket por linha"></textarea>
+            </label>
+
+            <div class="filter-grid tiflux-field-grid">
+              <label class="field field-wide">
+                <span>Hist&oacute;rico da Fatura</span>
+                <textarea id="tifluxHistorico" rows="3" placeholder="Opcional"></textarea>
+              </label>
+
+              <label class="field">
+                <span>Impedimento</span>
+                <input id="tifluxImpedimento" list="tifluxImpedimentoOptions" type="text" placeholder="Opcional">
+              </label>
+
+              <label class="field">
+                <span>Tratativas/observa&ccedil;&otilde;es</span>
+                <input id="tifluxTratativas" list="tifluxTratativasOptions" type="text" placeholder="Opcional">
+              </label>
+
+              <label class="field">
+                <span>Est&aacute;gio</span>
+                <select id="tifluxEstagio" class="field-select">
+                  <option value="">N&atilde;o alterar</option>
+                  <option value="Pendente">Pendente</option>
+                  <option value="Em andamento">Em andamento</option>
+                  <option value="Conclu&iacute;do">Conclu&iacute;do</option>
+                </select>
+              </label>
+
+              <label class="field">
+                <span>Fatura Assumida (Data)</span>
+                <input id="tifluxFaturaAssumida" type="date">
+              </label>
+
+              <label class="field">
+                <span>BO+DT (Data)</span>
+                <input id="tifluxBoDt" type="date">
+              </label>
+
+              <label class="field">
+                <span>RPS+NF (Data)</span>
+                <input id="tifluxRpsNf" type="date">
+              </label>
+
+              <label class="field">
+                <span>NF Prefeitura</span>
+                <input id="tifluxNfPrefeitura" type="date">
+              </label>
+
+              <label class="field">
+                <span>AE (Data)</span>
+                <input id="tifluxAe" type="date">
+              </label>
+
+              <label class="field">
+                <span>Importa&ccedil;&atilde;o (Data)</span>
+                <input id="tifluxImportacao" type="date">
+              </label>
+
+              <label class="field">
+                <span>Envio (Data)</span>
+                <input id="tifluxEnvio" type="date">
+              </label>
+
+              <label class="field">
+                <span>Conclu&iacute;do (Data)</span>
+                <input id="tifluxConcluido" type="date">
+              </label>
+            </div>
+
+            <button class="submit-button" type="submit" id="tifluxBatchButton">
+              <span>Executar lote no TiFlux</span>
+              <small>Reaproveita a sess&atilde;o salva do TiFlux e tenta reautenticar quando necess&aacute;rio.</small>
+            </button>
+          </form>
+
+          <aside class="assistant-card console-panel" id="tifluxAssistantCard">
+            <span class="assistant-eyebrow">Execu&ccedil;&atilde;o direta</span>
+            <h3 id="tifluxAssistantTitle">Aguardando lote TiFlux</h3>
+            <p id="tifluxAssistantText">Cole os tickets, preencha os campos desejados e dispare. O retorno por ticket aparece aqui sem depender da planilha.</p>
+            <div class="assistant-list" id="tifluxAssistantList">
+              <article class="assistant-item">
+                <strong>Campos opcionais</strong>
+                <p>Deixe em branco tudo o que n&atilde;o quiser alterar.</p>
+              </article>
+              <article class="assistant-item">
+                <strong>Autentica&ccedil;&atilde;o</strong>
+                <p>Se a sess&atilde;o do TiFlux expirar, o lote pode precisar revalidar o acesso automaticamente.</p>
+              </article>
+            </div>
+          </aside>
+        </div>
+
+        <datalist id="tifluxImpedimentoOptions">
+          <option value="Problema de Login no Fatura Fácil (Embratel)"></option>
+          <option value="Sem Acesso ao site - Cliente SAAS"></option>
+          <option value="Fatura não disponível, aberto protocolo"></option>
+          <option value="Não disponível – Fatura do mês não está disponível."></option>
+          <option value="Erro no site – Problemas de acesso ao portal. Não está relacionado ..."></option>
+          <option value="Sem acesso ao site – Problemas com login ou senha."></option>
+          <option value="N/A"></option>
+          <option value="Pendente Opedora - Validando trafego"></option>
+          <option value="Emissão atrasada devido nova NFCOM"></option>
+          <option value="AE (Arquivo Eletrônico) – Indisponível"></option>
+        </datalist>
+
+        <datalist id="tifluxTratativasOptions">
+          <option value="Problemas com AE – Contatar a operadora"></option>
+          <option value="Solicitar arquivo por e-mail"></option>
+          <option value="Solicitar arquivos para o cliente"></option>
+          <option value="Em Cancelamento"></option>
+          <option value="Solicitar prorrogação"></option>
+          <option value="Corrigir inconsistência"></option>
+          <option value="Escalado Anatel: Dentro do Prazo"></option>
+          <option value="Acompanhar devolutiva – Cliente"></option>
+          <option value="Abrir protocolo junto ao fornecedor"></option>
+          <option value="N/A"></option>
+          <option value="Reprocessar conta"></option>
+          <option value="Ajustar Valores"></option>
+          <option value="Escalado Ouvidoria: Dentro do Prazo"></option>
+          <option value="Direcionado ao desenvolvedor"></option>
+          <option value="Validação de Cancelamento"></option>
+          <option value="Validação de Ausência de trafego"></option>
+          <option value="Validação de bloqueio/suspensão temporária"></option>
+          <option value="Avaliar possível alteração de vencimento"></option>
+          <option value="NF PREF – Acompanhar conversão para NFPREFPendente Prorrogação"></option>
+          <option value="Fornecedor não disponibiliza portal"></option>
+          <option value="Não disponível – Fatura ou CNPJ não localizados nos acessos."></option>
+          <option value="PDF – Indisponível"></option>
+          <option value="Erro Upload – Portal"></option>
+          <option value="NF – Indisponível"></option>
+          <option value="NFPREF – Arquivo RPS não foi convertido em NF PREF"></option>
+        </datalist>
+
+        <div class="preview-pane">
+          <div class="preview-pane-header">
+            <strong>Status do lote TiFlux</strong>
+            <span id="tifluxBatchHint">Nenhum lote iniciado</span>
+          </div>
+          <div class="result-metrics" id="tifluxBatchMetrics"></div>
+        </div>
+
+        <div class="preview-pane">
+          <div class="preview-pane-header">
+            <strong>Retorno por ticket</strong>
+            <span id="tifluxBatchLineCount">0 ticket(s)</span>
+          </div>
+          <div class="table-scroll">
+            <table class="email-table-preview">
+              <thead>
+                <tr>
+                  <th>Ticket</th>
+                  <th>Status</th>
+                  <th>Mensagem</th>
+                  <th>Processado em</th>
+                  <th>Evid&ecirc;ncia</th>
+                </tr>
+              </thead>
+              <tbody id="tifluxBatchTableBody">
+                <tr><td colspan="5">Nenhum lote TiFlux executado.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./faturas.js?v=20260507-faturas-console"></script>
+</body>
+</html>

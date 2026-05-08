@@ -9,8 +9,9 @@
     "start": "node src/server.js",
     "web": "node src/server.js",
     "cli": "node src/index.js",
+    "public-link": "npx wrangler tunnel quick-start http://localhost:3210",
     "test": "node --test",
-    "check": "node -c public/app.js && node -c public/comparativo.js && node -c src/server.js && node -c src/process-email.js && npm test"
+    "check": "node -c public/app.js && node -c public/comparativo.js && node -c public/faturas.js && node -c src/server.js && node -c src/process-email.js && npm test"
   },
   "dependencies": {
     "commander": "^14.0.3",

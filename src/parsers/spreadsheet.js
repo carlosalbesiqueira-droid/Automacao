@@ -305,6 +305,7 @@ function normalizeCellValue(key, rawValue) {
     case 'tomador':
       return normalizeUppercaseText(rawValue);
     case 'cnpj':
+    case 'prestadorCnpj':
       return formatCnpj(rawValue);
     case 'valorServico':
     case 'valorDeducao':
@@ -353,7 +354,7 @@ function isMeaningfulRow(row) {
 
 function isInlineHintOnlyRow(row) {
   const hasHintLikeTomador = /^(nf|rep)\b/i.test(row.tomador || '');
-  const relevantKeys = ['cnpj', 'valorServico', 'emissao', 'dataFatoGerador', 'intermediario'];
+  const relevantKeys = ['cnpj', 'prestadorCnpj', 'valorServico', 'emissao', 'dataFatoGerador', 'intermediario'];
   const hasRichData = relevantKeys.some((key) => row[key] != null && row[key] !== '');
   const identityFields = ['nfse', 'rps', 'dps'].filter((key) => row[key]);
 
@@ -398,7 +399,7 @@ function mergeComplementaryCompanyRow(previousRow, row) {
     }
   }
 
-  for (const key of ['nfse', 'rps', 'dps', 'emissao', 'dataFatoGerador', 'intermediario', 'valorServico', 'valorDeducao', 'issDevido', 'issPagar', 'valorCredito', 'issRetido', 'issPagoGuia', 'cartaDe', 'numeroObra']) {
+  for (const key of ['nfse', 'rps', 'dps', 'emissao', 'dataFatoGerador', 'prestadorCnpj', 'intermediario', 'valorServico', 'valorDeducao', 'issDevido', 'issPagar', 'valorCredito', 'issRetido', 'issPagoGuia', 'cartaDe', 'numeroObra']) {
     if ((previousRow[key] == null || previousRow[key] === '') && row[key] != null && row[key] !== '') {
       previousRow[key] = row[key];
     }
