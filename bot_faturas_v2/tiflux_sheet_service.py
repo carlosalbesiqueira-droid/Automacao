@@ -6,7 +6,7 @@ import traceback
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import gspread
 from playwright.sync_api import Error, Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
@@ -63,13 +63,6 @@ FIELD_OPTIONS: dict[str, list[str]] = {
         "Pendente Opedora - Validando trafego",
         "Emissão atrasada devido nova NFCOM",
         "AE (Arquivo Eletrônico) – Indisponível",
-        "Pendente Prorrogação",
-        "Fornecedor não disponibiliza portal",
-        "Não disponível – Fatura ou CNPJ não localizados nos acessos.",
-        "PDF – Indisponível",
-        "Erro Upload – Portal",
-        "NF – Indisponível",
-        "NFPREF – Arquivo RPS não foi convertido em NF PREF",
     ],
     "tratativas_observacoes": [
         "Problemas com AE – Contatar a operadora",
@@ -90,7 +83,13 @@ FIELD_OPTIONS: dict[str, list[str]] = {
         "Validação de Ausência de trafego",
         "Validação de bloqueio/suspensão temporária",
         "Avaliar possível alteração de vencimento",
-        "NF PREF – Acompanhar conversão para NFPREF",
+        "NF PREF – Acompanhar conversão para NFPREFPendente Prorrogação",
+        "Fornecedor não disponibiliza portal",
+        "Não disponível – Fatura ou CNPJ não localizados nos acessos.",
+        "PDF – Indisponível",
+        "Erro Upload – Portal",
+        "NF – Indisponível",
+        "NFPREF – Arquivo RPS não foi convertido em NF PREF",
     ],
     "estagio": [
         "Pendente",
@@ -212,6 +211,11 @@ class TifluxSheetService:
             )
 
             for item in parsed_rows:
+                duplicate_result = self._duplicate_result_if_already_seen(item, summary)
+                if duplicate_result:
+                    summary.append(duplicate_result)
+                    self._write_result_row(worksheet, item.row_number, header_row, duplicate_result)
+                    continue
                 self.mark_row_processing(worksheet, header_row, item)
                 result = self._process_sheet_row(page, item)
                 summary.append(result)
@@ -239,14 +243,7 @@ class TifluxSheetService:
         )
         return payload
 
-    def process_ticket_batch(
-        self,
-        tickets: list[str],
-        raw_updates: dict[str, Any],
-        auth_code: str = "",
-        auth_code_provider: Callable[[], str] | None = None,
-        progress_callback: Callable[[list[dict[str, Any]], int, str], None] | None = None,
-    ) -> dict[str, Any]:
+    def process_ticket_batch(self, tickets: list[str], raw_updates: dict[str, Any]) -> dict[str, Any]:
         tiflux_email = DEFAULT_TIFLUX_EMAIL.strip()
         tiflux_password = DEFAULT_TIFLUX_PASSWORD
         if not tiflux_email or not tiflux_password:
@@ -280,17 +277,11 @@ class TifluxSheetService:
                 first_url=first_url,
                 email=tiflux_email,
                 password=tiflux_password,
-                auth_code=auth_code,
-                auth_code_provider=auth_code_provider,
             )
 
             for item in parsed_rows:
-                if progress_callback:
-                    progress_callback(summary, len(parsed_rows), item.ticket)
-                result = self._process_sheet_row(page, item, auth_code=auth_code, auth_code_provider=auth_code_provider)
+                result = self._process_sheet_row(page, item)
                 summary.append(result)
-                if progress_callback:
-                    progress_callback(summary, len(parsed_rows), "")
 
             context.close()
             browser.close()
@@ -323,8 +314,6 @@ class TifluxSheetService:
         first_url: str,
         email: str,
         password: str,
-        auth_code: str = "",
-        auth_code_provider: Callable[[], str] | None = None,
     ):
         page.goto(first_url, wait_until="domcontentloaded")
         page.wait_for_timeout(2000)
@@ -336,8 +325,7 @@ class TifluxSheetService:
                 page=page,
                 email=email,
                 password=password,
-                auth_code=auth_code,
-                auth_code_provider=auth_code_provider,
+                auth_code=None,
                 headless=self.headless,
                 timeout_ms=self.browser_timeout_ms,
             )
@@ -350,8 +338,7 @@ class TifluxSheetService:
                 page=page,
                 email=email,
                 password=password,
-                auth_code=auth_code,
-                auth_code_provider=auth_code_provider,
+                auth_code=None,
                 headless=self.headless,
                 timeout_ms=self.browser_timeout_ms,
             )
@@ -425,6 +412,26 @@ class TifluxSheetService:
         }
         self._write_result_row(worksheet, item.row_number, header_row, result)
 
+    def _duplicate_result_if_already_seen(
+        self,
+        item: "ParsedSheetRow",
+        summary: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        if not item.ticket:
+            return None
+        for previous in summary:
+            if str(previous.get("ticket", "")).strip() == item.ticket:
+                return {
+                    "row_number": item.row_number,
+                    "ticket": item.ticket,
+                    "status": "DUPLICADO",
+                    "message": f"Ticket ja processado na linha {previous.get('row_number')}; esta linha nao foi executada novamente.",
+                    "fields_applied": ", ".join(update.spec.label for update in item.updates),
+                    "processed_at": now_iso(),
+                    "evidence": "",
+                }
+        return None
+
     def _build_google_client(self) -> gspread.Client:
         credentials = build_google_credentials(GOOGLE_SCOPES)
         return gspread.authorize(credentials)
@@ -483,14 +490,7 @@ class TifluxSheetService:
             parsed.append(ParsedSheetRow(row_number=row_number, ticket=ticket, updates=updates))
         return parsed
 
-    def _process_sheet_row(
-        self,
-        page: Page,
-        item: "ParsedSheetRow",
-        *,
-        auth_code: str = "",
-        auth_code_provider: Callable[[], str] | None = None,
-    ) -> dict[str, Any]:
+    def _process_sheet_row(self, page: Page, item: "ParsedSheetRow") -> dict[str, Any]:
         fields_applied = ", ".join(update.spec.label for update in item.updates)
         if not item.ticket:
             return {
@@ -521,8 +521,7 @@ class TifluxSheetService:
                     page=page,
                     email=DEFAULT_TIFLUX_EMAIL,
                     password=DEFAULT_TIFLUX_PASSWORD,
-                    auth_code=auth_code,
-                    auth_code_provider=auth_code_provider,
+                    auth_code=None,
                     headless=self.headless,
                     timeout_ms=self.browser_timeout_ms,
                 )
@@ -533,53 +532,31 @@ class TifluxSheetService:
             modal_updates = [update for update in item.updates if update.spec.kind != "stage"]
             stage_updates = [update for update in item.updates if update.spec.kind == "stage"]
             mismatches: list[str] = []
-            errors: list[str] = []
+
+            if modal_updates:
+                click_area_de_faturas_tab(page)
+                open_edit_modal(page)
+                for update in modal_updates:
+                    set_modal_field_value(page, update.spec.label, update.value, update.spec.kind)
+                save_modal(page)
+
+                page.wait_for_timeout(1000)
+                open_edit_modal(page)
+                mismatches.extend(verify_modal_field_values(page, modal_updates))
 
             if stage_updates:
                 for update in stage_updates:
-                    try:
-                        set_stage_value(page, update.value)
-                        actual_stage = normalize_compare_value(read_stage_value(page), "stage")
-                        expected_stage = normalize_compare_value(update.value, "stage")
-                        if actual_stage != expected_stage:
-                            mismatches.append(update.spec.label)
-                    except Exception as exc:  # noqa: BLE001
-                        errors.append(f"{update.spec.label}: {exc}")
-
-            if modal_updates:
-                try:
-                    try:
-                        click_area_de_faturas_tab(page)
-                    except Exception:
-                        # Alguns links /entities_* ja abrem diretamente a area da fatura
-                        # ou escondem a aba no topo; nesse caso tentamos abrir o modal direto.
-                        pass
-                    open_edit_modal(page)
-                    for update in modal_updates:
-                        set_modal_field_value(page, update.spec.label, update.value, update.spec.kind)
-                    save_modal(page)
-
-                    page.wait_for_timeout(700)
-                    open_edit_modal(page)
-                    mismatches.extend(verify_modal_field_values(page, modal_updates))
-                except Exception as exc:  # noqa: BLE001
-                    errors.append(f"Area de Faturas: {exc}")
-
+                    set_stage_value(page, update.value)
+                    actual_stage = normalize_compare_value(read_stage_value(page), "stage")
+                    expected_stage = normalize_compare_value(update.value, "stage")
+                    if actual_stage != expected_stage:
+                        mismatches.append(update.spec.label)
             evidence = str(take_screenshot(page, self.output_dir, item.ticket, "planilha_tiflux"))
-            if errors:
-                message = f"Atualizacao parcial com erro: {'; '.join(errors)}"
-                status = "ALERTA"
-            elif mismatches:
-                message = f"Validacao parcial: {', '.join(mismatches)}"
-                status = "ALERTA"
-            else:
-                message = "Campos salvos com sucesso."
-                status = "OK"
             return {
                 "row_number": item.row_number,
                 "ticket": item.ticket,
-                "status": status,
-                "message": message,
+                "status": "OK" if not mismatches else "ALERTA",
+                "message": "Campos salvos com sucesso." if not mismatches else f"Validacao parcial: {', '.join(mismatches)}",
                 "fields_applied": fields_applied,
                 "processed_at": now_iso(),
                 "evidence": evidence,
@@ -990,3 +967,166 @@ def normalize_stage_key(value: str) -> str:
     if "pendente" in text:
         return "pendente"
     return re.sub(r"[^a-z0-9]+", "_", text).strip("_")
+
+
+# Keep the runtime definitions UTF-8 safe even if older source blocks contain mojibake.
+FIELD_OPTIONS = {
+    "impedimento": [
+        "Problema de Login no Fatura Fácil (Embratel)",
+        "Sem Acesso ao site - Cliente SAAS",
+        "Fatura não disponível, aberto protocolo",
+        "Não disponível – Fatura do mês não está disponível.",
+        "Erro no site – Problemas de acesso ao portal. Não está relacionado ...",
+        "Sem acesso ao site – Problemas com login ou senha.",
+        "N/A",
+        "Pendente Opedora - Validando trafego",
+        "Emissão atrasada devido nova NFCOM",
+        "AE (Arquivo Eletrônico) – Indisponível",
+        "Pendente Prorrogação",
+        "Fornecedor não disponibiliza portal",
+        "Não disponível – Fatura ou CNPJ não localizados nos acessos.",
+        "PDF – Indisponível",
+        "Erro Upload – Portal",
+        "NF – Indisponível",
+        "NFPREF – Arquivo RPS não foi convertido em NF PREF",
+    ],
+    "tratativas_observacoes": [
+        "Problemas com AE – Contatar a operadora",
+        "Solicitar arquivo por e-mail",
+        "Solicitar arquivos para o cliente",
+        "Em Cancelamento",
+        "Solicitar prorrogação",
+        "Corrigir inconsistência",
+        "Escalado Anatel: Dentro do Prazo",
+        "Acompanhar devolutiva – Cliente",
+        "Acompanhar devolutiva - Operadora",
+        "Abrir protocolo junto ao fornecedor",
+        "N/A",
+        "Reprocessar conta",
+        "Ajustar Valores",
+        "Escalado Ouvidoria: Dentro do Prazo",
+        "Direcionado ao desenvolvedor",
+        "Validação de Cancelamento",
+        "Validação de Ausência de trafego",
+        "Validação de bloqueio/suspensão temporária",
+        "Avaliar possível alteração de vencimento",
+        "NF PREF – Acompanhar conversão para NFPREF",
+    ],
+    "estagio": [
+        "Pendente",
+        "Em andamento",
+        "Concluído",
+    ],
+}
+
+FIELD_SPECS = (
+    SheetFieldSpec("historico_da_fatura", "Histórico da Fatura", "text"),
+    SheetFieldSpec("impedimento", "Impedimento", "select"),
+    SheetFieldSpec("tratativas_observacoes", "Tratativas/observações", "select"),
+    SheetFieldSpec("fatura_assumida_data", "Fatura Assumida (Data)", "date"),
+    SheetFieldSpec("bo_dt_data", "BO+DT (Data)", "date"),
+    SheetFieldSpec("rps_nf_data", "RPS+NF (Data)", "date"),
+    SheetFieldSpec("nf_prefeitura", "NF Prefeitura", "date"),
+    SheetFieldSpec("ae_data", "AE (Data)", "date"),
+    SheetFieldSpec("importacao_data", "Importação (Data)", "date"),
+    SheetFieldSpec("envio_data", "Envio (Data)", "date"),
+    SheetFieldSpec("concluido_data", "Concluído (Data)", "date"),
+    SheetFieldSpec("estagio", "Estágio", "stage"),
+)
+
+
+def set_stage_value(page: Page, value: str) -> None:
+    target_value = canonical_stage_value(value)
+    try:
+        page.get_by_text("Informações gerais", exact=True).click(timeout=1200)
+        page.wait_for_timeout(250)
+    except Exception:  # noqa: BLE001
+        pass
+
+    selectors = (
+        "xpath=//*[normalize-space()='Estágio']/following::*[@role='combobox'][1]",
+        "xpath=//*[normalize-space()='Estágio']/following::*[contains(@class,'ant-select-selector')][1]",
+        "xpath=//*[normalize-space()='Estágio']/following::input[1]",
+        "xpath=//*[contains(normalize-space(),'Est') and contains(normalize-space(),'gio')]/following::*[@role='combobox'][1]",
+        "xpath=//*[contains(normalize-space(),'Est') and contains(normalize-space(),'gio')]/following::*[contains(@class,'ant-select-selector')][1]",
+    )
+    last_error: Exception | None = None
+    for selector in selectors:
+        try:
+            control = page.locator(selector).first
+            control.wait_for(state="visible", timeout=1800)
+            control.click()
+            page.wait_for_timeout(180)
+            if click_stage_option(page, target_value):
+                page.wait_for_timeout(500)
+                return
+            page.keyboard.press("Control+A")
+            page.keyboard.type(unidecode(target_value), delay=20)
+            page.wait_for_timeout(250)
+            if click_stage_option(page, target_value):
+                page.wait_for_timeout(500)
+                return
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(500)
+            return
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+    raise RuntimeError(f"Nao foi possivel definir o estágio '{value}'.") from last_error
+
+
+def canonical_stage_value(value: str) -> str:
+    text = unidecode(clean_text(value)).casefold()
+    if "andamento" in text:
+        return "Em andamento"
+    if "conclu" in text:
+        return "Concluído"
+    if "pendente" in text:
+        return "Pendente"
+    return clean_text(value)
+
+
+def click_stage_option(page: Page, value: str) -> bool:
+    target_key = normalize_stage_key(value)
+    option_locators = (
+        page.get_by_role("option"),
+        page.locator(".ant-select-item-option:visible"),
+        page.locator("[title]:visible"),
+    )
+    for locator in option_locators:
+        try:
+            count = min(locator.count(), 30)
+        except Exception:  # noqa: BLE001
+            continue
+        for index in range(count):
+            option = locator.nth(index)
+            try:
+                option_text = clean_text(option.inner_text() or option.get_attribute("title") or "")
+                if normalize_stage_key(option_text) == target_key:
+                    option.click(timeout=1200)
+                    return True
+            except Exception:  # noqa: BLE001
+                continue
+    return False
+
+
+def read_stage_value(page: Page) -> str:
+    selectors = (
+        "xpath=//*[normalize-space()='Estágio']/following::*[@role='combobox'][1]",
+        "xpath=//*[normalize-space()='Estágio']/following::*[contains(@class,'ant-select-selector')][1]",
+        "xpath=//*[normalize-space()='Estágio']/following::input[1]",
+        "xpath=//*[contains(normalize-space(),'Est') and contains(normalize-space(),'gio')]/following::*[@role='combobox'][1]",
+        "xpath=//*[contains(normalize-space(),'Est') and contains(normalize-space(),'gio')]/following::*[contains(@class,'ant-select-selector')][1]",
+    )
+    for selector in selectors:
+        try:
+            control = page.locator(selector).first
+            control.wait_for(state="visible", timeout=1200)
+            text = clean_text(control.inner_text())
+            if text:
+                return text
+            value = clean_text(control.input_value())
+            if value:
+                return value
+        except Exception:  # noqa: BLE001
+            continue
+    return ""
